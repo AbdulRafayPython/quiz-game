@@ -19,7 +19,7 @@ export default function Scoreboard({ currentLevel = 1, totalScore = 0 }) {
       <div className="scoreboard__header">
         <img
           className="scoreboard__header-bg"
-          src="/assets/screen5/f948e02d425ca531b710ec22472b294b9c532ab9.png"
+          src="/assets/screen5/f948e02d425ca531b710ec22472b294b9c532ab9.webp"
           alt=""
           aria-hidden="true"
         />
@@ -42,7 +42,7 @@ export default function Scoreboard({ currentLevel = 1, totalScore = 0 }) {
               <div className="score-tier__num-container">
                 <img
                   className="score-tier__num-bg"
-                  src="/assets/screen5/fd443d0eaf8537d4b27dcab94b1006e1ccbf3d54.png"
+                  src="/assets/screen5/fd443d0eaf8537d4b27dcab94b1006e1ccbf3d54.webp"
                   alt=""
                   aria-hidden="true"
                 />
@@ -52,7 +52,7 @@ export default function Scoreboard({ currentLevel = 1, totalScore = 0 }) {
               <div className="score-tier__val-container">
                 <img
                   className="score-tier__val-bg"
-                  src="/assets/screen5/3f0ffa2fc0e319931f07073b6f1af59bb8660ca0.png"
+                  src="/assets/screen5/3f0ffa2fc0e319931f07073b6f1af59bb8660ca0.webp"
                   alt=""
                   aria-hidden="true"
                 />

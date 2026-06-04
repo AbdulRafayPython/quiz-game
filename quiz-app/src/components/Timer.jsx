@@ -39,7 +39,7 @@ export default function Timer({ duration = 15, running = true, onTimeUp }) {
     <div className={`timer ${statusClass}`} id="timer">
       <img
         className="timer__bg"
-        src="/assets/screen5/58215ee57f78277b8955f3423c7a5a0057389d7d.png"
+        src="/assets/screen5/58215ee57f78277b8955f3423c7a5a0057389d7d.webp"
         alt=""
         aria-hidden="true"
       />

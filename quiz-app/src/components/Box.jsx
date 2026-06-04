@@ -90,5 +90,6 @@ export default function Box({
   );
 }
 
-/** Asset path helper for the exact Figma-exported images. */
-export const A = (name) => `/assets/figma/${name}`;
+/** Asset path helper for the exact Figma-exported images.
+ *  Images are served as optimized WebP; callers still pass the .png name. */
+export const A = (name) => `/assets/figma/${name.replace(/\.(png|jpe?g)$/i, '.webp')}`;

@@ -13,10 +13,10 @@ export default function QuestionPanel({
   // Green: b9bdac337066697d023c95651ea5bc040f32f524.png
   // Yellow: 26e030ce75f37d7fa2d5e78e277a0be82b3d17e5.png
   const optionBgs = [
-    '/assets/screen5/5ea6b4ffb170b2ebdc4731fd4bf6c7c9b1d743ec.png', // Purple
-    '/assets/screen5/bfd84faa0f3329c8561d4976b20d744cbf8f75b1.png', // Red
-    '/assets/screen5/b9bdac337066697d023c95651ea5bc040f32f524.png', // Green
-    '/assets/screen5/26e030ce75f37d7fa2d5e78e277a0be82b3d17e5.png'  // Yellow
+    '/assets/screen5/5ea6b4ffb170b2ebdc4731fd4bf6c7c9b1d743ec.webp', // Purple
+    '/assets/screen5/bfd84faa0f3329c8561d4976b20d744cbf8f75b1.webp', // Red
+    '/assets/screen5/b9bdac337066697d023c95651ea5bc040f32f524.webp', // Green
+    '/assets/screen5/26e030ce75f37d7fa2d5e78e277a0be82b3d17e5.webp'  // Yellow
   ];
 
   return (
@@ -24,7 +24,7 @@ export default function QuestionPanel({
       <div className="question-box">
         <img
           className="question-box__bg"
-          src="/assets/screen5/9793bcfc622f57851711931d845ed67bcc868b52.png"
+          src="/assets/screen5/9793bcfc622f57851711931d845ed67bcc868b52.webp"
           alt=""
           aria-hidden="true"
         />

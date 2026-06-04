@@ -1,11 +1,11 @@
 import './LifelinePanel.css';
 
 const LIFELINES = [
-  { id: 'general', label: 'General Round', bg: '/assets/screen5/1933951a910793eed4e446c48517fc61101aec62.png' },
-  { id: 'audience', label: 'ASK Audience', bg: '/assets/screen5/baf04acb213e993edd1f5da201c412df2e7df937.png' },
-  { id: 'fifty', label: '50:50', bg: '/assets/screen5/137bc6fb0314fdb92e1d600ec2d7b37e3a9b9ebb.png' },
-  { id: 'timer', label: 'Timer Round', bg: '/assets/screen5/1933951a910793eed4e446c48517fc61101aec62.png' },
-  { id: 'buzzer', label: 'Buzzer Round', bg: '/assets/screen5/1933951a910793eed4e446c48517fc61101aec62.png' }
+  { id: 'general', label: 'General Round', bg: '/assets/screen5/1933951a910793eed4e446c48517fc61101aec62.webp' },
+  { id: 'audience', label: 'ASK Audience', bg: '/assets/screen5/baf04acb213e993edd1f5da201c412df2e7df937.webp' },
+  { id: 'fifty', label: '50:50', bg: '/assets/screen5/137bc6fb0314fdb92e1d600ec2d7b37e3a9b9ebb.webp' },
+  { id: 'timer', label: 'Timer Round', bg: '/assets/screen5/1933951a910793eed4e446c48517fc61101aec62.webp' },
+  { id: 'buzzer', label: 'Buzzer Round', bg: '/assets/screen5/1933951a910793eed4e446c48517fc61101aec62.webp' }
 ];
 
 export default function LifelinePanel({

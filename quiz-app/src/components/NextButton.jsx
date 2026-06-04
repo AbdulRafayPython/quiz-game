@@ -5,7 +5,7 @@ export default function NextButton({ onClick }) {
     <button className="next-button" onClick={onClick} id="next-button">
       <img
         className="next-button__img"
-        src="/assets/screen6/Next.png"
+        src="/assets/screen6/Next.webp"
         alt="Next"
       />
     </button>

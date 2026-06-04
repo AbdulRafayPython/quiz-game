@@ -12,7 +12,7 @@ export default function TeamScoreBar({ teams = [], activeTeamIndex = 0 }) {
           >
             <img
               className="team-score-card__bg"
-              src="/assets/screen5/0d30ac7ab477669fa628fd00404206aa70eac30c.png"
+              src="/assets/screen5/0d30ac7ab477669fa628fd00404206aa70eac30c.webp"
               alt=""
               aria-hidden="true"
             />
