@@ -1,0 +1,113 @@
+.team-setup-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.team-setup-panel {
+  position: relative;
+  width: 647px;
+  height: 943px;
+  animation: fadeInScale 0.6s ease both;
+}
+
+.team-setup-panel__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+
+/* Absolute positions for interactive overlay components */
+.overlay-inputs-container {
+  position: absolute;
+  inset: 0;
+}
+
+.overlay-row {
+  position: absolute;
+  left: 118px;
+  display: flex;
+  align-items: center;
+  height: 38px;
+}
+
+.overlay-input {
+  width: 366px;
+  height: 100%;
+  /* Use matching dark color box to cover background text */
+  background-color: #180c35; 
+  border: 1px solid #581c87;
+  border-radius: 6px;
+  font-family: var(--font-primary);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-white);
+  padding: 0 12px;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.overlay-input:focus {
+  border-color: var(--color-accent-magenta);
+  box-shadow: 0 0 10px rgba(217, 70, 239, 0.6);
+}
+
+.overlay-delete-btn {
+  position: absolute;
+  left: 390px; /* Aligns with the pre-drawn trash icon */
+  width: 38px;
+  height: 38px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.overlay-delete-btn:hover {
+  background-color: rgba(220, 38, 38, 0.2);
+}
+
+.overlay-delete-btn:focus {
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.8);
+}
+
+/* Add Team overlay button */
+.overlay-add-team-btn {
+  position: absolute;
+  top: 798px; /* Overlay exactly on the pre-drawn button */
+  left: 218px;
+  width: 210px;
+  height: 48px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  outline: none;
+  transition: box-shadow var(--transition-fast);
+}
+
+.overlay-add-team-btn:focus {
+  box-shadow: 0 0 12px rgba(250, 183, 0, 0.8);
+}
+
+.team-setup-screen__controls {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  width: 647px;
+  margin-top: 10px;
+}

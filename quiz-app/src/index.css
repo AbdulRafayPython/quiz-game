@@ -1,0 +1,215 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
+/* ── Design Tokens ── */
+:root {
+  --color-bg-deep: #0d0520;
+  --color-bg-purple: #1a0a2e;
+  --color-bg-panel: rgba(30, 10, 60, 0.85);
+  --color-text-light: #F3E1F5;
+  --color-text-white: #FFFFFF;
+  --color-accent-gold: #FAB700;
+  --color-accent-magenta: #d946ef;
+  --color-accent-pink: #fcbbfd;
+  --color-black: #000000;
+  --color-purple-btn: #6b21a8;
+  --color-red-btn: #dc2626;
+  --color-green-btn: #16a34a;
+  --color-yellow-btn: #eab308;
+
+  --font-primary: 'Space Mono', monospace;
+  --font-weight-regular: 400;
+  --font-weight-bold: 700;
+
+  --shadow-glow-pink: 0 0 30px rgba(252, 187, 253, 0.4);
+  --shadow-glow-gold: 0 0 20px rgba(250, 183, 0, 0.4);
+  --shadow-glow-purple: 0 0 40px rgba(147, 51, 234, 0.5);
+
+  --transition-fast: 0.2s ease;
+  --transition-medium: 0.35s ease;
+  --transition-slow: 0.6s ease;
+}
+
+/* ── Global Reset ── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-light);
+  background-color: var(--color-bg-deep);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  outline: none;
+}
+
+input {
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  border: none;
+  outline: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Text Utilities (matching Figma styles) ── */
+.text-title-xl {
+  font-size: 64px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text-title-lg {
+  font-size: 48px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.text-title-md {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.text-body-lg {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 37px;
+}
+
+.text-body-md {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 37px;
+}
+
+.text-body-sm {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.text-label {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 37px;
+}
+
+.text-timer {
+  font-size: 72px;
+  font-weight: 700;
+}
+
+.text-gold {
+  color: var(--color-accent-gold);
+}
+
+.text-white {
+  color: var(--color-text-white);
+}
+
+.text-pink {
+  color: var(--color-text-light);
+}
+
+/* ── Animation Keyframes ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+@keyframes glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes confettiFall {
+  0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.15); }
+  70% { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes countdownPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}

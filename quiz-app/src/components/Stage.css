@@ -1,0 +1,30 @@
+.stage-viewport {
+  position: fixed;
+  inset: 0;
+  background: #0a0418;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Fills the whole viewport (incl. the letterbox bars) with a blurred, cover-fit
+   copy of the scene background so no black bars are visible. Scaled up slightly
+   so the blur never reveals an empty edge. */
+.stage-bg-fill {
+  position: absolute;
+  inset: 0;
+  background: url('/assets/figma/stage-bg.png') center / cover no-repeat;
+  filter: blur(26px) brightness(0.7);
+  transform: scale(1.15);
+  z-index: 0;
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  transform-origin: center center;
+  overflow: hidden;
+  background: #0a0418;
+}
