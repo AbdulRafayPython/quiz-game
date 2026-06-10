@@ -70,6 +70,52 @@
   font-weight: 400;
 }
 
+/* Team Setup — live, dynamic rows rendered inside the border-image frame */
+.ts-panel { user-select: none; }
+.ts-num {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f3e1f5;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 22px;
+  text-shadow: 0 0 6px rgba(217, 70, 239, 0.5);
+}
+.ts-field {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 40px;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1.6px solid rgba(224, 86, 247, 0.8);
+  box-shadow: 0 0 8px rgba(217, 70, 239, 0.5), inset 0 0 8px rgba(0, 0, 0, 0.55);
+}
+.ts-trash {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 50px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: #ff8a4c;
+  border: 1.8px solid rgba(255, 138, 76, 0.75);
+  background: rgba(70, 14, 32, 0.35);
+  cursor: pointer;
+  transition: filter 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, transform 0.1s ease;
+}
+.ts-trash:hover { background: rgba(255, 138, 76, 0.2); box-shadow: 0 0 11px rgba(255, 138, 76, 0.6); }
+.ts-trash:active { transform: translateY(-50%) scale(0.9); }
+
 /* ---- Admin: View Quizzes live table ---- */
 .vq-card {
   display: flex;
