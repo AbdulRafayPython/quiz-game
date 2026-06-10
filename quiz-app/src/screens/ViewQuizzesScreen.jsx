@@ -1,8 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { QUIZZES } from '../data/quizzes';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { listQuizzes, deleteQuiz } from '../lib/api';
 import './screens.css';
+
+const fmtDate = (s) => {
+  try { return new Date(s).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch { return s; }
+};
 
 // Frame "View Quizzes" (60:26) — admin quiz list.
 // The panel art supplies the outer frame + title + the two top buttons; the
@@ -74,9 +81,24 @@ function pageList(current, total) {
 }
 
 export default function ViewQuizzesScreen({ onBack, onAddNew, onEditQuiz }) {
-  const [quizzes, setQuizzes] = useState(QUIZZES);
+  const [quizzes, setQuizzes] = useState(isSupabaseConfigured ? [] : QUIZZES);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+
+  // Load live quizzes from Supabase when configured.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let active = true;
+    listQuizzes()
+      .then((rows) => {
+        if (!active) return;
+        setQuizzes(rows.map((r) => ({
+          id: r.id, name: r.name, questions: r.question_count, rounds: r.rounds, created: fmtDate(r.created_at),
+        })));
+      })
+      .catch((e) => console.error('Failed to load quizzes:', e.message));
+    return () => { active = false; };
+  }, []);
 
   const total = quizzes.length;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -94,6 +116,7 @@ export default function ViewQuizzesScreen({ onBack, onAddNew, onEditQuiz }) {
   };
   const remove = (id) => {
     setQuizzes((qs) => qs.filter((q) => q.id !== id));
+    if (isSupabaseConfigured) deleteQuiz(id).catch((e) => console.error('Delete failed:', e.message));
   };
 
   const showingFrom = total === 0 ? 0 : start + 1;

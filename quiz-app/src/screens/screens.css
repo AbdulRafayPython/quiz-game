@@ -16,6 +16,26 @@
   cursor: not-allowed;
 }
 
+/* Login screens - live username/password fields overlaid on the baked panel.
+   The input covers the baked placeholder (to the right of the baked icon); the
+   baked neon border stays visible around it. */
+.login-input {
+  box-sizing: border-box;
+  background: #250d3c;
+  color: #f8e9ff;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 22px;
+  width: 100%;
+  height: 100%;
+  padding: 0 18px;
+  border-radius: 10px;
+}
+.login-input::placeholder {
+  color: rgba(243, 225, 245, 0.48);
+  font-weight: 400;
+}
+
 /* Transparent hotspot used to make a baked-in graphic clickable */
 .hotspot {
   background: transparent !important;

@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { saveGameResult } from '../lib/api';
 import './screens.css';
 
 const GOLD = '#FAB700';
@@ -13,10 +16,23 @@ const SLOTS = [
   { bx: 972, nameX: 1059, scoreX: 1195 },
 ];
 
-export default function ResultsScreen({ teamResults = [], onRestart }) {
+export default function ResultsScreen({ teamResults = [], quizName = null, onRestart }) {
   const ranked = [...teamResults].sort((a, b) => b.score - a.score);
   const winner = ranked[0] || { name: 'No Team', score: 0 };
   const others = ranked.slice(1, 4); // up to 3 in the bottom brackets
+
+  // Persist the finished game once (for history / leaderboard).
+  const saved = useRef(false);
+  useEffect(() => {
+    if (saved.current || !isSupabaseConfigured || teamResults.length === 0) return;
+    saved.current = true;
+    saveGameResult({
+      quizName,
+      teams: ranked.map((t) => ({ name: t.name, score: t.score })),
+      winner: winner.name,
+    }).catch((e) => console.error('Failed to save result:', e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Stage className="screen-fade">

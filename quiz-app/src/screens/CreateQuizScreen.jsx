@@ -1,7 +1,12 @@
 import { useRef, useState } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { createQuiz, saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia } from '../lib/api';
 import './screens.css';
+
+// DB question row -> local form/table shape
+const mapRow = (r) => ({ id: r.id, question: r.text, options: r.options, correct: r.correct });
 
 // Frame "Create Quiz" (51:77) — admin add-question screen.
 // The panel art supplies the outer frame + "ADD NEW QUESTION" title; the whole
@@ -65,9 +70,13 @@ export default function CreateQuizScreen({ onBack }) {
   const [timer, setTimer] = useState(15);
   const [imageName, setImageName] = useState('');
   const [videoName, setVideoName] = useState('');
-  const [questions, setQuestions] = useState(SEED_QUESTIONS);
+  const [questions, setQuestions] = useState(isSupabaseConfigured ? [] : SEED_QUESTIONS);
   const [editingId, setEditingId] = useState(null);
   const [page, setPage] = useState(1);
+  const [quizId, setQuizId] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const imageRef = useRef(null);
   const videoRef = useRef(null);
@@ -79,15 +88,48 @@ export default function CreateQuizScreen({ onBack }) {
     setEditingId(null);
   };
 
-  const saveQuestion = () => {
+  const saveQuestion = async () => {
     if (!form.question.trim() || form.options.some((o) => !o.trim())) return;
-    if (editingId != null) {
-      setQuestions((qs) => qs.map((q) => (q.id === editingId ? { ...q, ...form } : q)));
-    } else {
-      const id = questions.length ? Math.max(...questions.map((q) => q.id)) + 1 : 1;
-      setQuestions((qs) => [...qs, { id, ...form }]);
+
+    // Local-only behaviour when no backend is configured.
+    if (!isSupabaseConfigured) {
+      if (editingId != null) {
+        setQuestions((qs) => qs.map((q) => (q.id === editingId ? { ...q, ...form } : q)));
+      } else {
+        const id = questions.length ? Math.max(...questions.map((q) => q.id)) + 1 : 1;
+        setQuestions((qs) => [...qs, { id, ...form }]);
+      }
+      clearForm();
+      return;
     }
-    clearForm();
+
+    setSaving(true);
+    try {
+      // Lazily create the quiz row on the first saved question.
+      let qid = quizId;
+      if (!qid) {
+        const quiz = await createQuiz({ name: quizName.trim() || 'Untitled Quiz', rounds: Number(rounds), timer: Number(timer) });
+        qid = quiz.id;
+        setQuizId(qid);
+      }
+      const image_url = imageFile ? await uploadMedia(imageFile) : null;
+      const video_url = videoFile ? await uploadMedia(videoFile) : null;
+      const saved = await apiSaveQuestion(qid, {
+        id: typeof editingId === 'string' ? editingId : undefined,
+        question: form.question, options: form.options, correct: form.correct,
+        image_url, video_url, position: questions.length,
+      });
+      setQuestions((qs) => (qs.some((q) => q.id === saved.id)
+        ? qs.map((q) => (q.id === saved.id ? mapRow(saved) : q))
+        : [...qs, mapRow(saved)]));
+      setImageFile(null); setVideoFile(null); setImageName(''); setVideoName('');
+      clearForm();
+    } catch (e) {
+      console.error('Save question failed:', e.message);
+      alert('Save failed: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const editQuestion = (q) => {
@@ -97,6 +139,9 @@ export default function CreateQuizScreen({ onBack }) {
   const deleteQuestion = (id) => {
     setQuestions((qs) => qs.filter((q) => q.id !== id));
     if (editingId === id) clearForm();
+    if (isSupabaseConfigured && typeof id === 'string') {
+      apiDeleteQuestion(id).catch((e) => console.error('Delete failed:', e.message));
+    }
   };
 
   const pageCount = Math.max(1, Math.ceil(questions.length / PAGE_SIZE));
@@ -173,7 +218,7 @@ export default function CreateQuizScreen({ onBack }) {
                   <div className="cq-upload-hint">JPG, PNG (Max 2 MB)</div>
                 </div>
                 <input ref={imageRef} type="file" accept="image/*" hidden
-                  onChange={(e) => setImageName(e.target.files?.[0]?.name || '')} />
+                  onChange={(e) => { const f = e.target.files?.[0]; setImageFile(f || null); setImageName(f?.name || ''); }} />
               </div>
             </div>
             <div className="cq-field">
@@ -187,7 +232,7 @@ export default function CreateQuizScreen({ onBack }) {
                   <div className="cq-upload-hint">MP4 (Max 20 MB)</div>
                 </div>
                 <input ref={videoRef} type="file" accept="video/*" hidden
-                  onChange={(e) => setVideoName(e.target.files?.[0]?.name || '')} />
+                  onChange={(e) => { const f = e.target.files?.[0]; setVideoFile(f || null); setVideoName(f?.name || ''); }} />
               </div>
             </div>
           </div>
@@ -236,8 +281,8 @@ export default function CreateQuizScreen({ onBack }) {
         {/* Action buttons */}
         <div className="cq-actions-bar">
           <button className="cq-btn back" onClick={onBack}>‹ Back to Dashboard</button>
-          <button className="cq-btn save" onClick={saveQuestion}>
-            {editingId != null ? 'Update Question' : 'Save Question'}
+          <button className="cq-btn save" onClick={saveQuestion} disabled={saving}>
+            {saving ? 'Saving…' : editingId != null ? 'Update Question' : 'Save Question'}
           </button>
           <button className="cq-btn clear" onClick={clearForm}>Clear</button>
         </div>

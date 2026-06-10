@@ -122,7 +122,7 @@ const TEAM_SLOTS = [
   { bx: 773, nameX: 892, scoreX: 1072 },
 ];
 
-export default function GameplayScreen({ quizCategory, initialTeams = [], onFinish }) {
+export default function GameplayScreen({ quizCategory, initialTeams = [], onFinish, initialLifelineBg = null }) {
   const categoryId = quizCategory?.id || 'science';
   const questionsList = QUESTIONS[categoryId] || QUESTIONS.science;
 
@@ -143,6 +143,7 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
   const [usedLifelines, setUsedLifelines] = useState([]);
   const [audiencePoll, setAudiencePoll] = useState(null);
   const [hiddenOptions, setHiddenOptions] = useState([]);
+  const [lifelineBg, setLifelineBg] = useState(initialLifelineBg); // 'audience' | 'phone' | null
 
   const intervalRef = useRef(null);
   const currentQuestion = questionsList[questionIndex] || questionsList[0];
@@ -197,6 +198,7 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
     setHiddenOptions([]);
     setSecondsLeft(15);
     setRunning(true);
+    setLifelineBg(null); // revert any lifeline background on the next question
   };
 
   const handleUseLifeline = (id) => {
@@ -207,8 +209,10 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
       setHiddenOptions(pickTwoWrong(currentQuestion.answer));
     } else if (id === 'audience') {
       setAudiencePoll(makeAudiencePoll(currentQuestion.answer));
+      setLifelineBg('audience'); // show the crowd background
     } else if (id === 'phone') {
       setSecondsLeft((s) => s + 10); // extra time
+      setLifelineBg('phone'); // show the phone-a-friend background
     }
   };
 
@@ -230,7 +234,14 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
 
   return (
     <Stage className="screen-fade">
-      <Box img={A('stage-bg.png')} x={0} y={0} w={1536} h={1024} />
+      {/* Background — swaps to the lifeline background while a lifeline is active */}
+      {lifelineBg === 'phone' ? (
+        <Box img={A('phone-bg.png')} x={-156} y={-208} w={1848} h={1232} fit="cover" />
+      ) : lifelineBg === 'audience' ? (
+        <Box img={A('audience-bg.png')} x={0} y={0} w={1536} h={1024} fit="cover" />
+      ) : (
+        <Box img={A('stage-bg.png')} x={0} y={0} w={1536} h={1024} />
+      )}
 
       {/* Back / Next */}
       <Box as="button" className="hot" img={A('back-btn.png')} x={0} y={-30} w={308} h={205}
@@ -241,10 +252,10 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
       {/* Resume (resumes the countdown) */}
       <Box img={A('resume-orange.png')} x={51} y={113} w={205} h={62} style={{ pointerEvents: 'none' }} />
       <Box as="button" className="hot hotspot" x={51} y={113} w={205} h={62}
-        onClick={() => !isAnswered && setRunning(true)} aria-label="Resume"
+        onClick={() => !isAnswered && setRunning((r) => !r)} aria-label="Pause"
         style={{ borderRadius: 8 }} />
-      <Box x={95} y={118} w={118} h={47} size={32} color={WHITE} align="center" valign="center"
-        style={{ pointerEvents: 'none' }}>RESUME</Box>
+      <Box x={105} y={118} w={98} h={47} size={32} color={WHITE} align="center" valign="center"
+        style={{ pointerEvents: 'none' }}>PAUSE</Box>
 
       {/* Timer ring + count */}
       <Box img={A('timer-ring.png')} x={68} y={217} w={185} h={185} style={{ pointerEvents: 'none' }} />

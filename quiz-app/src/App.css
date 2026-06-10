@@ -5,3 +5,29 @@
   position: relative;
   background-color: var(--color-bg-deep);
 }
+
+/* Floating logout — only rendered for an authenticated Supabase session. */
+.app-logout {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font: 600 14px/1 inherit;
+  letter-spacing: 0.5px;
+  color: #f3e1f5;
+  background: rgba(40, 8, 52, 0.72);
+  border: 1px solid rgba(243, 225, 245, 0.35);
+  border-radius: 10px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.app-logout:hover {
+  background: rgba(190, 30, 90, 0.85);
+  border-color: rgba(243, 225, 245, 0.7);
+}
+.app-logout:active { transform: translateY(1px); }
