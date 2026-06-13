@@ -16,26 +16,9 @@ export async function signIn(username, password) {
   return data;
 }
 
-export async function signUp(username, password, role = 'player') {
-  ensure();
-  const { data, error } = await supabase.auth.signUp({
-    email: toEmail(username),
-    password,
-    options: { data: { username: username.trim(), role } },
-  });
-  if (error) throw error;
-  return data;
-}
-
-// Players self-register on first login; admins must already exist (and be promoted).
-export async function signInOrSignUp(username, password, role = 'player') {
-  try {
-    return await signIn(username, password);
-  } catch (e) {
-    if (/invalid login credentials/i.test(e.message)) return await signUp(username, password, role);
-    throw e;
-  }
-}
+// NOTE: there is intentionally no sign-up / self-register. Accounts (the single
+// admin) are created directly in the database — see the README. Both the game
+// and admin panels sign in to that existing admin account only.
 
 export async function getCurrentRole() {
   ensure();
@@ -74,14 +57,43 @@ export async function listQuizzes() {
   return data;
 }
 
-export async function createQuiz({ name, rounds = 1, timer = 15 }) {
+export async function createQuiz({ name, rounds = 1, timer = 25, timerRoundTimer = 10, correctPoints = 1000, penaltyPoints = 500 }) {
   ensure();
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from('quizzes')
-    .insert({ name, rounds, timer, created_by: user?.id ?? null })
+    .insert({
+      name, rounds, timer,
+      timer_round_timer: timerRoundTimer,
+      correct_points: correctPoints,
+      penalty_points: penaltyPoints,
+      created_by: user?.id ?? null,
+    })
     .select()
     .single();
+  if (error) throw error;
+  return data;
+}
+
+// Load a single quiz row (includes the scoring/timer settings used by gameplay).
+export async function getQuiz(id) {
+  ensure();
+  const { data, error } = await supabase.from('quizzes').select('*').eq('id', id).single();
+  if (error) throw error;
+  return data;
+}
+
+// Persist quiz-level settings (name, timer, scoring) when editing an existing quiz.
+export async function updateQuiz(id, { name, rounds, timer, timerRoundTimer, correctPoints, penaltyPoints }) {
+  ensure();
+  const patch = {};
+  if (name != null) patch.name = name;
+  if (rounds != null) patch.rounds = rounds;
+  if (timer != null) patch.timer = timer;
+  if (timerRoundTimer != null) patch.timer_round_timer = timerRoundTimer;
+  if (correctPoints != null) patch.correct_points = correctPoints;
+  if (penaltyPoints != null) patch.penalty_points = penaltyPoints;
+  const { data, error } = await supabase.from('quizzes').update(patch).eq('id', id).select().single();
   if (error) throw error;
   return data;
 }
@@ -114,6 +126,7 @@ export async function saveQuestion(quizId, q) {
     round: q.round ?? 1,
     image_url: q.image_url ?? null,
     video_url: q.video_url ?? null,
+    poster_url: q.poster_url ?? null,
     position: q.position ?? 0,
   };
   const query = q.id

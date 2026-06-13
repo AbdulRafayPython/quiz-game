@@ -41,7 +41,12 @@
   background: transparent !important;
 }
 .hotspot:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
+  /* Soft centred glow that fades to transparent before the edges — avoids the
+     hard square a flat fill would paint over the baked button art. */
+  background: radial-gradient(ellipse at center,
+    rgba(255, 255, 255, 0.10) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0) 72%) !important;
 }
 
 /* Admin entry link on the Home screen (not part of the frame) */
@@ -250,6 +255,26 @@
   background: rgba(250, 183, 0, 0.08);
 }
 .vq-pagebtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Quiz-select pagination arrows */
+.qs-pagebtn {
+  width: 46px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(40, 8, 72, 0.6);
+  color: #ffd24a;
+  font-family: 'Space Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  border: 1.5px solid rgba(250, 183, 0, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: box-shadow 0.12s ease, background-color 0.12s ease;
+}
+.qs-pagebtn:hover:not(:disabled) { background: rgba(250, 183, 0, 0.15); box-shadow: 0 0 10px rgba(250, 183, 0, 0.5); }
+.qs-pagebtn:disabled { opacity: 0.35; cursor: not-allowed; }
 .vq-pagebtn.nav { font-size: 20px; }
 .vq-ellipsis { color: #c39ee8; padding: 0 2px; min-width: 20px; text-align: center; }
 
@@ -295,6 +320,8 @@
 .cq-select-wrap .cq-caret { position: absolute; right: 13px; top: 50%; transform: translateY(-50%); color: #c39ee8; font-size: 12px; pointer-events: none; }
 
 .cq-field { margin-bottom: 12px; }
+.cq-field-row { display: flex; gap: 12px; }
+.cq-field-row .cq-subfield { flex: 1 1 0; min-width: 0; }
 
 .cq-opt-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .cq-opt-label { color: #f5c542; font-size: 14px; font-weight: 700; width: 78px; flex: 0 0 78px; }
@@ -393,8 +420,13 @@
 .opt:hover:not(:disabled) {
   filter: brightness(1.15);
 }
-.opt.is-selected {
-  filter: brightness(1.25) drop-shadow(0 0 16px rgba(255, 255, 255, 0.6));
+/* Locked answer awaiting reveal — the yellow diamond pulses for suspense. */
+.opt.is-suspense {
+  animation: suspensePulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes suspensePulse {
+  from { filter: brightness(1) drop-shadow(0 0 6px rgba(255, 210, 0, 0.5)); }
+  to   { filter: brightness(1.35) drop-shadow(0 0 22px rgba(255, 210, 0, 0.95)); }
 }
 .opt.is-correct {
   filter: brightness(1.3) drop-shadow(0 0 18px rgba(60, 255, 120, 0.8));

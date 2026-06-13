@@ -3,6 +3,7 @@ import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { saveGameResult } from '../lib/api';
+import { playSound } from '../lib/sound';
 import './screens.css';
 
 const GOLD = '#FAB700';
@@ -42,7 +43,7 @@ export default function ResultsScreen({ teamResults = [], quizName = null, onRes
 
       {/* Next (restart) */}
       <Box as="button" className="hot" img={A('next-btn.png')} x={1213} y={-30} w={308} h={205}
-        onClick={onRestart} aria-label="Continue" />
+        onClick={() => { playSound('click'); onRestart?.(); }} aria-label="Continue" />
 
       {/* Trophy + banner (995×485 @ 270,242) */}
       <Box img={A('trophy-banner.png')} x={270} y={242} w={995} h={485} style={{ pointerEvents: 'none' }} />

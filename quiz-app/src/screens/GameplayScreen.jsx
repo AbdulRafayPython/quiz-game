@@ -1,64 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
+import { roundById, DEFAULT_SCORING } from '../data/rounds';
+import { playSound, stopSound, stopGameSounds } from '../lib/sound';
 import './screens.css';
 
 const GOLD = '#FAB700';
 const WHITE = '#FFFFFF';
 
-// Sample questions database by category
-const QUESTIONS = {
-  science: [
-    { q: 'What is the chemical formula\nof water?', options: ['CO2', 'O2', 'H2O', 'NaCl'], answer: 2 },
-    { q: 'Which planet is known as\nthe Red Planet?', options: ['Earth', 'Mars', 'Jupiter', 'Saturn'], answer: 1 },
-    { q: 'What is the hardest natural\nsubstance on Earth?', options: ['Gold', 'Iron', 'Diamond', 'Platinum'], answer: 2 },
-    { q: 'What gas do plants absorb\nduring photosynthesis?', options: ['Oxygen', 'Carbon Dioxide', 'Nitrogen', 'Hydrogen'], answer: 1 },
-    { q: 'How many bones are in an\nadult human body?', options: ['186', '206', '216', '226'], answer: 1 },
-    { q: 'What is the center of an\natom called?', options: ['Proton', 'Electron', 'Nucleus', 'Neutron'], answer: 2 },
-    { q: "Most abundant gas in\nEarth's atmosphere?", options: ['Oxygen', 'Nitrogen', 'CO2', 'Argon'], answer: 1 },
-    { q: 'Boiling point of water\nin Celsius?', options: ['90°C', '100°C', '110°C', '120°C'], answer: 1 },
-    { q: 'What is the power house\nof the cell?', options: ['Nucleus', 'Ribosome', 'Mitochondria', 'Lysosome'], answer: 2 },
-    { q: 'Who proposed the theory\nof relativity?', options: ['Newton', 'Einstein', 'Tesla', 'Curie'], answer: 1 },
-  ],
-  math: [
-    { q: 'What is the square root\nof 144?', options: ['10', '11', '12', '13'], answer: 2 },
-    { q: 'Value of Pi to 2\ndecimal places?', options: ['3.12', '3.14', '3.16', '3.18'], answer: 1 },
-    { q: 'What is 7 multiplied\nby 8?', options: ['54', '56', '58', '62'], answer: 1 },
-    { q: 'How many degrees in\na right angle?', options: ['45°', '90°', '180°', '360°'], answer: 1 },
-    { q: 'Next prime number\nafter 7?', options: ['9', '11', '13', '15'], answer: 1 },
-    { q: 'Solve: 2 + 2 * 2', options: ['4', '6', '8', '10'], answer: 1 },
-    { q: 'Roman numeral for 50?', options: ['V', 'X', 'L', 'C'], answer: 2 },
-    { q: 'How many sides does a\nheptagon have?', options: ['6', '7', '8', '9'], answer: 1 },
-    { q: 'What is 15% of 200?', options: ['15', '20', '30', '40'], answer: 2 },
-    { q: 'If x + 5 = 12,\nwhat is x?', options: ['5', '7', '8', '9'], answer: 1 },
-  ],
-  english: [
-    { q: 'Which of these is\na noun?', options: ['Run', 'Beautiful', 'Happiness', 'Quickly'], answer: 2 },
-    { q: "Antonym of 'Generous'?", options: ['Kind', 'Selfish', 'Happy', 'Polite'], answer: 1 },
-    { q: 'What is a group of\nlions called?', options: ['Pack', 'Herd', 'Pride', 'Flock'], answer: 2 },
-    { q: 'Choose the correct\nspelling:', options: ['Recieve', 'Receive', 'Receve', 'Recive'], answer: 1 },
-    { q: "Who wrote 'Romeo\nand Juliet'?", options: ['Dickens', 'Shakespeare', 'Twain', 'Austen'], answer: 1 },
-    { q: 'Which is in the\npast tense?', options: ['I run', 'I will run', 'I ran', 'I am running'], answer: 2 },
-    { q: 'A person who writes\nbooks is a(n)...', options: ['Actor', 'Author', 'Artist', 'Architect'], answer: 1 },
-    { q: "Synonym for 'Huge'?", options: ['Tiny', 'Gigantic', 'Weak', 'Fast'], answer: 1 },
-    { q: "Plural of 'child'?", options: ['Childs', 'Children', 'Childrens', 'Childes'], answer: 1 },
-    { q: "Comparison using 'like'\nor 'as' is a...", options: ['Metaphor', 'Simile', 'Personification', 'Hyperbole'], answer: 1 },
-  ],
-  chemistry: [
-    { q: 'Atomic symbol for Gold?', options: ['Ag', 'Au', 'Fe', 'Cu'], answer: 1 },
-    { q: 'pH level of pure water?', options: ['5', '7', '9', '11'], answer: 1 },
-    { q: 'Which element is a\nnoble gas?', options: ['Oxygen', 'Hydrogen', 'Helium', 'Chlorine'], answer: 2 },
-    { q: 'Chemical formula for\ntable salt?', options: ['H2O', 'CO2', 'NaCl', 'HCl'], answer: 2 },
-    { q: 'Gas produced when acid\nreacts with metal?', options: ['Oxygen', 'Hydrogen', 'CO2', 'Nitrogen'], answer: 1 },
-    { q: 'Atomic number of\nCarbon?', options: ['4', '6', '8', '12'], answer: 1 },
-    { q: 'Liquid turning into gas\nis called?', options: ['Freezing', 'Melting', 'Evaporation', 'Condensation'], answer: 2 },
-    { q: 'Father of modern\nchemistry?', options: ['Lavoisier', 'Mendeleev', 'Dalton', 'Curie'], answer: 0 },
-    { q: 'Chemical formula\nof Methane?', options: ['CO2', 'CH4', 'C2H6', 'H2O'], answer: 1 },
-    { q: 'Particle with a\nnegative charge?', options: ['Proton', 'Neutron', 'Electron', 'Nucleus'], answer: 2 },
-  ],
-};
-
-const LADDER_SCORES = [10, 30, 50, 100, 500, 1000, 10000, 100000, 1000000, 10000000];
+// After a team locks an answer the question doesn't resolve immediately — the
+// timer drops to this short, dramatic window (the locked button glows yellow and
+// the suspense sound loops) before the answer is finally revealed.
+const SUSPENSE_SECONDS = 4;
 
 // Pure helpers (module scope so render purity rules aren't tripped by Math.random)
 function pickTwoWrong(correct) {
@@ -80,34 +33,44 @@ function makeAudiencePoll(correct) {
   return poll;
 }
 
-// Prize ladder rows, top (level 10) → bottom (level 1). Amount strings match the Figma exactly.
+// Scoreboard point ladder (level 1..10). A question's value = the level for its
+// position: Q1 → 10, Q2 → 30, … Q10 → 10,000,000. Quizzes longer than 10
+// questions stay at the top value. Correct earns it; wrong/timeout subtracts it.
+const LADDER_POINTS = [10, 30, 50, 100, 500, 1000, 10000, 100000, 1000000, 10000000];
+const pointsForIndex = (i) => LADDER_POINTS[Math.min(i, LADDER_POINTS.length - 1)];
+
+// Prize ladder display rows (lvl 10 at top → lvl 1 at bottom); amount derives
+// from LADDER_POINTS so the board and the scoring always agree.
 const LADDER = [
-  { lvl: 10, amount: '10,000,000', y: 283 },
-  { lvl: 9, amount: '10,000,00', y: 328 },
-  { lvl: 8, amount: '10,000,0', y: 403 },
-  { lvl: 7, amount: '10,000', y: 448 },
-  { lvl: 6, amount: '1000', y: 523 },
-  { lvl: 5, amount: '500', y: 568 },
-  { lvl: 4, amount: '100', y: 643 },
-  { lvl: 3, amount: '50', y: 688 },
-  { lvl: 2, amount: '30', y: 763 },
-  { lvl: 1, amount: '10', y: 808 },
+  { lvl: 10, y: 283 },
+  { lvl: 9, y: 328 },
+  { lvl: 8, y: 403 },
+  { lvl: 7, y: 448 },
+  { lvl: 6, y: 523 },
+  { lvl: 5, y: 568 },
+  { lvl: 4, y: 643 },
+  { lvl: 3, y: 688 },
+  { lvl: 2, y: 763 },
+  { lvl: 1, y: 808 },
 ];
 
+// Sidebar round labels (key matches data/rounds.js so the active one highlights).
 const ROUNDS = [
-  { label: 'General Round', y: 248 },
-  { label: 'ASK Audience', y: 368 },
-  { label: '50:50', y: 488 },
-  { label: 'Timer Round', y: 607 },
-  { label: 'Buzzer Round', y: 728 },
+  { key: 'general', label: 'General Round', y: 248 },
+  { key: 'audience', label: 'ASK Audience', y: 368 },
+  { key: 'fifty', label: '50:50', y: 488 },
+  { key: 'timer', label: 'Timer Round', y: 607 },
+  { key: 'buzzer', label: 'Buzzer Round', y: 728 },
 ];
 
-// Option slots — index → screen position + colour image (TL, TR, BL, BR)
+// Option slots — index → screen position (TL, TR, BL, BR). All four share the
+// same purple diamond; the colour only changes by state (see optionImg below):
+// locked → yellow, then on reveal the correct one → green and a wrong pick → red.
 const OPTION_SLOTS = [
-  { x: 348, y: 689, w: 413, h: 73, img: 'opt-purple.png' },
-  { x: 778, y: 689, w: 412, h: 73, img: 'opt-red.png' },
-  { x: 348, y: 767, w: 411, h: 74, img: 'opt-green.png' },
-  { x: 778, y: 767, w: 411, h: 75, img: 'opt-yellow.png' },
+  { x: 348, y: 689, w: 413, h: 73 },
+  { x: 778, y: 689, w: 412, h: 73 },
+  { x: 348, y: 767, w: 411, h: 74 },
+  { x: 778, y: 767, w: 411, h: 75 },
 ];
 
 const LIFELINES = [
@@ -116,29 +79,48 @@ const LIFELINES = [
   { id: 'audience', img: 'lifeline-audience.png', y: 703 },
 ];
 
-// Bottom team bars — two 497×94 slots
+// Bottom team bars — two 497×94 slots. scoreX/scoreW define a centred score zone
+// that stays inside the bracket's slanted right edge (bracket spans bx..bx+497),
+// symmetric for both teams, so long scores don't spill past the diamond point.
 const TEAM_SLOTS = [
-  { bx: 261, nameX: 380, scoreX: 607 },
+  { bx: 261, nameX: 380, scoreX: 560 },
   { bx: 773, nameX: 892, scoreX: 1072 },
 ];
 
-export default function GameplayScreen({ quizCategory, initialTeams = [], onFinish, initialLifelineBg = null }) {
-  const categoryId = quizCategory?.id || 'science';
-  const questionsList = QUESTIONS[categoryId] || QUESTIONS.science;
+// Shown when a quiz has no questions (so the screen never crashes on an empty set).
+const EMPTY_QUESTION = { q: '', options: ['', '', '', ''], answer: 0, round: 5 };
+
+export default function GameplayScreen({
+  initialTeams = [],
+  questions: providedQuestions = null,
+  scoring: scoringProp = null,
+  onFinish,
+  initialLifelineBg = null,
+}) {
+  const scoring = { ...DEFAULT_SCORING, ...(scoringProp || {}) };
+  // Questions come from the selected (admin-created) quiz in the database.
+  const questionsList = providedQuestions?.length ? providedQuestions : [];
+  const noQuestions = questionsList.length === 0;
+
+  const roundSecondsFor = (q) => (roundById(q?.round).key === 'timer' ? scoring.timerRoundTimer : scoring.timer);
 
   const [teams, setTeams] = useState(
     initialTeams.length > 0
       ? initialTeams.map((t) => ({ ...t, score: 0 }))
       : [{ name: 'Solo Player', score: 0 }]
   );
-  const [currentLevel, setCurrentLevel] = useState(1);
   const [currentTeamIndex, setCurrentTeamIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
 
+  // selectedOption: null = nothing locked yet · 0..3 = the locked answer · -1 = time ran out with no pick
   const [selectedOption, setSelectedOption] = useState(null);
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(15);
+  // revealed = the answer has been shown (correct→green / wrong→red); set when the timer expires.
+  const [revealed, setRevealed] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(() => roundSecondsFor(questionsList[0]));
   const [running, setRunning] = useState(true);
+
+  // Buzzer round: which team the teacher locked in (null = nobody has buzzed yet)
+  const [lockedTeamIndex, setLockedTeamIndex] = useState(null);
 
   const [usedLifelines, setUsedLifelines] = useState([]);
   const [audiencePoll, setAudiencePoll] = useState(null);
@@ -146,63 +128,124 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
   const [lifelineBg, setLifelineBg] = useState(initialLifelineBg); // 'audience' | 'phone' | null
 
   const intervalRef = useRef(null);
-  const currentQuestion = questionsList[questionIndex] || questionsList[0];
+  const currentQuestion = questionsList[questionIndex] || questionsList[0] || EMPTY_QUESTION;
   const isLast = questionIndex >= questionsList.length - 1;
 
-  // Countdown
+  // Points this question is worth, per the scoreboard ladder (by position).
+  const questionPoints = pointsForIndex(questionIndex);
+  const activeLevel = Math.min(questionIndex + 1, LADDER_POINTS.length);
+
+  const round = roundById(currentQuestion.round);
+  const isBuzzer = round.key === 'buzzer';
+  // The team currently entitled to answer: locked team in a buzzer round, else the team whose turn it is.
+  const answeringTeam = isBuzzer ? lockedTeamIndex : currentTeamIndex;
+  // In a buzzer round, options are locked until the teacher selects who buzzed first.
+  const awaitingBuzz = isBuzzer && lockedTeamIndex === null && !revealed;
+  // Something has been committed for this question (an answer locked, or time ran out).
+  const hasPick = selectedOption != null;
+
+  // Award/deduct this question's ladder value to one team (correct → +, wrong → −).
+  const scoreTeam = (teamIdx, correct) => {
+    const delta = correct ? questionPoints : -questionPoints;
+    setTeams((prev) => prev.map((t, i) => (i === teamIdx ? { ...t, score: t.score + delta } : t)));
+  };
+
+  // Timeout handler kept in a ref so the interval always sees fresh state.
+  // Refreshed after every render (no deps) so the closure stays current.
+  const onTimeoutRef = useRef(() => {});
+  useEffect(() => {
+    onTimeoutRef.current = () => {
+      if (revealed) return;
+      stopSound('suspense');
+      setRevealed(true);
+      setRunning(false);
+      if (selectedOption != null && selectedOption >= 0) {
+        // A team locked an answer → reveal it and score on correctness.
+        const correct = selectedOption === currentQuestion.answer;
+        if (answeringTeam != null) scoreTeam(answeringTeam, correct);
+        playSound(correct ? 'correct' : 'wrong');
+      } else {
+        // Time ran out with no answer locked.
+        setSelectedOption(-1);
+        if (isBuzzer && lockedTeamIndex === null) {
+          // Nobody buzzed → every team takes the level's penalty.
+          setTeams((prev) => prev.map((t) => ({ ...t, score: t.score - questionPoints })));
+        } else if (answeringTeam != null) {
+          scoreTeam(answeringTeam, false);
+        }
+        playSound('wrong');
+      }
+    };
+  });
+
+  // Countdown — the updater must stay pure (no side effects), because React
+  // StrictMode double-invokes updaters in dev. Scoring happens in the effect
+  // below when the count reaches zero, so it fires exactly once.
   useEffect(() => {
     clearInterval(intervalRef.current);
-    if (!running || isAnswered) return;
+    if (!running || revealed || noQuestions) return; // no timer/scoring on an empty quiz
     intervalRef.current = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(intervalRef.current);
-          setIsAnswered(true);
-          setSelectedOption(-1);
-          return 0;
-        }
-        return prev - 1;
-      });
+      setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(intervalRef.current);
-  }, [running, isAnswered]);
+  }, [running, revealed, noQuestions]);
 
-  const handleSelectOption = (idx) => {
-    if (isAnswered || hiddenOptions.includes(idx)) return;
-    setSelectedOption(idx);
-    setIsAnswered(true);
-    setRunning(false);
-    if (idx === currentQuestion.answer) {
-      const points = LADDER_SCORES[currentLevel - 1];
-      setTeams((prev) => {
-        const next = [...prev];
-        next[currentTeamIndex] = { ...next[currentTeamIndex], score: next[currentTeamIndex].score + points };
-        return next;
-      });
+  // Fire the timeout (reveal + scoring) once the countdown hits zero. Kept out
+  // of the interval's state updater so it runs a single time per question.
+  useEffect(() => {
+    if (secondsLeft === 0 && running && !revealed && !noQuestions) {
+      clearInterval(intervalRef.current);
+      onTimeoutRef.current();
     }
+  }, [secondsLeft, running, revealed, noQuestions]);
+
+  // Background music keeps playing from the game login; just clean up the
+  // gameplay cues (suspense etc.) when leaving — leave the music running.
+  useEffect(() => () => stopGameSounds(), []);
+
+  // A team locks an answer. Colours stay as-is; the timer drops to a short
+  // suspense window (locked button glows yellow + suspense sound) and the answer
+  // is only revealed/scored when that window expires (see onTimeout).
+  const handleSelectOption = (idx) => {
+    if (noQuestions || revealed || hasPick || awaitingBuzz || hiddenOptions.includes(idx)) return;
+    setSelectedOption(idx);
+    setSecondsLeft(SUSPENSE_SECONDS);
+    setRunning(true);
+    playSound('lock');
+    playSound('suspense');
+  };
+
+  // Buzzer round: teacher clicks the team that buzzed first → it locks in and
+  // gets a fresh window to answer.
+  const lockTeam = (i) => {
+    if (!awaitingBuzz) return;
+    setLockedTeamIndex(i);
+    setSecondsLeft(roundSecondsFor(currentQuestion));
+    setRunning(true);
   };
 
   const handleNext = () => {
-    if (isLast || currentLevel >= 10) {
+    stopSound('suspense'); // stop the suspense loop but keep background music going
+    if (isLast) {
       onFinish(teams);
       return;
     }
-    const correct = selectedOption === currentQuestion.answer;
-    setCurrentLevel((lvl) => (correct ? Math.min(lvl + 1, 10) : Math.max(lvl - 1, 1)));
+    const nextIndex = questionIndex + 1;
     if (teams.length > 1) setCurrentTeamIndex((i) => (i + 1) % teams.length);
-    setQuestionIndex((i) => i + 1);
+    setQuestionIndex(nextIndex);
     // Reset per-question state for the next question
     setSelectedOption(null);
-    setIsAnswered(false);
+    setRevealed(false);
+    setLockedTeamIndex(null);
     setAudiencePoll(null);
     setHiddenOptions([]);
-    setSecondsLeft(15);
+    setSecondsLeft(roundSecondsFor(questionsList[nextIndex]));
     setRunning(true);
     setLifelineBg(null); // revert any lifeline background on the next question
   };
 
   const handleUseLifeline = (id) => {
-    if (isAnswered || usedLifelines.includes(id)) return;
+    if (noQuestions || revealed || hasPick || usedLifelines.includes(id)) return;
     setUsedLifelines((u) => [...u, id]);
 
     if (id === 'fifty') {
@@ -210,9 +253,11 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
     } else if (id === 'audience') {
       setAudiencePoll(makeAudiencePoll(currentQuestion.answer));
       setLifelineBg('audience'); // show the crowd background
+      playSound('audience'); // crowd / KBC audience sound
     } else if (id === 'phone') {
       setSecondsLeft((s) => s + 10); // extra time
       setLifelineBg('phone'); // show the phone-a-friend background
+      playSound('friend'); // phone-a-friend dial/ring sound
     }
   };
 
@@ -224,38 +269,69 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
 
   const optionClass = (idx) => {
     if (hiddenOptions.includes(idx)) return 'opt is-hidden';
-    if (!isAnswered) return selectedOption === idx ? 'opt is-selected' : 'opt';
+    // Before reveal: all purple; the locked one pulses (yellow image + glow).
+    if (!revealed) return selectedOption === idx ? 'opt is-suspense' : 'opt';
+    // After reveal: correct → green, the locked wrong answer → red.
     if (idx === currentQuestion.answer) return 'opt is-correct';
     if (idx === selectedOption) return 'opt is-wrong';
     return 'opt';
   };
 
-  const teamScore = teams[currentTeamIndex]?.score || 0;
+  // The diamond image to show for an option, by state. Same purple for all
+  // until something happens: locked → yellow, reveal correct → green, reveal
+  // wrong pick → red.
+  const optionImg = (idx) => {
+    if (!revealed) return selectedOption === idx ? 'opt-yellow.png' : 'opt-purple.png';
+    if (idx === currentQuestion.answer) return 'opt-green.png';
+    if (idx === selectedOption) return 'opt-red.png';
+    return 'opt-purple.png';
+  };
+
+  // Lifeline the current round suggests the teacher use (highlight, still manual).
+  const suggestedLifeline = round.key === 'fifty' ? 'fifty' : round.key === 'audience' ? 'audience' : null;
+
+  // Banner text explaining the active round's mechanic.
+  const banner = isBuzzer
+    ? lockedTeamIndex == null
+      ? '🔔 Buzzer Round — click the team that buzzed first'
+      : `🔒 ${teams[lockedTeamIndex]?.name || 'Team'} locked in — answer now!`
+    : `${round.label} — ${teams[currentTeamIndex]?.name || 'Team'}'s turn`;
+
+  const headerScore = teams[answeringTeam ?? currentTeamIndex]?.score || 0;
+  const media = currentQuestion.image_url || currentQuestion.video_url;
 
   return (
     <Stage className="screen-fade">
       {/* Background — swaps to the lifeline background while a lifeline is active */}
       {lifelineBg === 'phone' ? (
-        <Box img={A('phone-bg.png')} x={-156} y={-208} w={1848} h={1232} fit="cover" />
+        <Box img={A('phone-bg.png')} x={0} y={0} w={1536} h={1024} fit="cover" />
       ) : lifelineBg === 'audience' ? (
         <Box img={A('audience-bg.png')} x={0} y={0} w={1536} h={1024} fit="cover" />
       ) : (
         <Box img={A('stage-bg.png')} x={0} y={0} w={1536} h={1024} />
       )}
 
+      {/* Empty quiz guard — shown when the selected quiz has no questions yet */}
+      {noQuestions && (
+        <Box x={331} y={470} w={875} h={120} size={28} color={GOLD} align="center" valign="center"
+          style={{ pointerEvents: 'none', textShadow: '0 2px 10px rgba(0,0,0,0.7)' }}>
+          {'This quiz has no questions yet.\nAdd questions in the admin panel.'}
+        </Box>
+      )}
+
       {/* Back / Next */}
       <Box as="button" className="hot" img={A('back-btn.png')} x={0} y={-30} w={308} h={205}
-        onClick={() => onFinish(teams)} aria-label="Back" />
+        onClick={() => { stopGameSounds(); onFinish(teams); }} aria-label="Back" />
       <Box as="button" className="hot" img={A('next-btn.png')} x={1213} y={-30} w={308} h={205}
         onClick={handleNext} aria-label={isLast ? 'Results' : 'Next'} />
 
       {/* Resume (resumes the countdown) */}
       <Box img={A('resume-orange.png')} x={51} y={113} w={205} h={62} style={{ pointerEvents: 'none' }} />
       <Box as="button" className="hot hotspot" x={51} y={113} w={205} h={62}
-        onClick={() => !isAnswered && setRunning((r) => !r)} aria-label="Pause"
+        onClick={() => !revealed && setRunning((r) => !r)} aria-label="Pause"
         style={{ borderRadius: 8 }} />
       <Box x={105} y={118} w={98} h={47} size={32} color={WHITE} align="center" valign="center"
-        style={{ pointerEvents: 'none' }}>PAUSE</Box>
+        style={{ pointerEvents: 'none' }}>{running ? 'PAUSE' : 'PLAY'}</Box>
 
       {/* Timer ring + count */}
       <Box img={A('timer-ring.png')} x={68} y={217} w={185} h={185} style={{ pointerEvents: 'none' }} />
@@ -264,12 +340,36 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
         {secondsLeft}
       </Box>
 
-      {/* Lifelines */}
+      {/* Lifelines (manual; the round's suggested lifeline gets a glow) */}
       {LIFELINES.map((l) => (
         <Box key={l.id} as="button" className="hot" img={A(l.img)} x={57} y={l.y} w={207} h={138}
-          disabled={usedLifelines.includes(l.id) || isAnswered}
-          onClick={() => handleUseLifeline(l.id)} aria-label={l.id} />
+          disabled={usedLifelines.includes(l.id) || hasPick || revealed || noQuestions}
+          onClick={() => handleUseLifeline(l.id)} aria-label={l.id}
+          style={l.id === suggestedLifeline && !usedLifelines.includes(l.id)
+            ? { filter: 'drop-shadow(0 0 14px rgba(250,183,0,0.9))' } : undefined} />
       ))}
+
+      {/* Round banner */}
+      <Box x={331} y={486} w={875} h={36} size={22} color={GOLD} align="center" valign="center"
+        style={{ pointerEvents: 'none', fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.6)' }}>
+        {banner}
+      </Box>
+
+      {/* Per-question media (General round / any question with an attachment) */}
+      {media && (
+        <div style={{ position: 'absolute', left: 468, top: 150, width: 600, height: 320,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(20,2,40,0.55)', border: '2px solid rgba(250,183,0,0.6)',
+          borderRadius: 14, overflow: 'hidden', pointerEvents: 'none' }}>
+          {currentQuestion.video_url ? (
+            <video src={currentQuestion.video_url} poster={currentQuestion.poster_url || undefined}
+              controls preload="metadata"
+              style={{ maxWidth: '100%', maxHeight: '100%', pointerEvents: 'auto' }} />
+          ) : (
+            <img src={currentQuestion.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+          )}
+        </div>
+      )}
 
       {/* Question bracket + text */}
       <Box img={A('question-bracket.png')} x={331} y={532} w={875} h={133} style={{ pointerEvents: 'none' }} />
@@ -281,8 +381,8 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
       {/* Options */}
       {OPTION_SLOTS.map((s, i) => (
         <div key={i}>
-          <Box as="button" className={`hot ${optionClass(i)}`} img={A(s.img)}
-            x={s.x} y={s.y} w={s.w} h={s.h} disabled={isAnswered}
+          <Box as="button" className={`hot ${optionClass(i)}`} img={A(optionImg(i))}
+            x={s.x} y={s.y} w={s.w} h={s.h} disabled={hasPick || revealed || awaitingBuzz || noQuestions}
             onClick={() => handleSelectOption(i)} aria-label={`Option ${i + 1}`} />
           <Box x={s.x} y={s.y} w={s.w} h={s.h} size={24} color={WHITE} align="center" valign="center"
             style={{ pointerEvents: 'none', padding: '0 20px' }}>
@@ -295,48 +395,57 @@ export default function GameplayScreen({ quizCategory, initialTeams = [], onFini
       <Box img={A('scoreboard-header.png')} x={1237} y={144} w={260} h={99} style={{ pointerEvents: 'none' }} />
       <Box x={1294} y={197} w={166} h={33} size={24} color={WHITE} valign="center"
         style={{ pointerEvents: 'none' }}>
-        {teamScore.toLocaleString()}
+        {headerScore.toLocaleString()}
       </Box>
 
-      {/* Round labels */}
-      {ROUNDS.map((r) => (
-        <div key={r.label}>
-          <Box img={A('round-bracket.png')} x={1297} y={r.y} w={140} h={31} style={{ pointerEvents: 'none' }} />
-          <Box x={1297} y={r.y} w={140} h={31} size={11} color={WHITE} align="center" valign="center"
-            style={{ pointerEvents: 'none' }}>
-            {r.label}
-          </Box>
-        </div>
-      ))}
-
-      {/* Prize ladder */}
-      {LADDER.map((row) => {
-        const active = row.lvl === currentLevel;
+      {/* Round labels (active round highlighted) */}
+      {ROUNDS.map((r) => {
+        const active = r.key === round.key;
         return (
-          <div key={row.lvl} className={active ? 'ladder-row-active' : undefined}>
-            <Box img={A('score-number.png')} x={1240} y={row.y} w={74} h={33} style={{ pointerEvents: 'none' }} />
-            <Box img={A('score-bracket.png')} x={1322} y={row.y} w={175} h={36} style={{ pointerEvents: 'none' }} />
-            <Box x={1240} y={row.y} w={74} h={33} size={16} color={GOLD} align="center" valign="center"
-              style={{ pointerEvents: 'none' }}>{row.lvl}</Box>
-            <Box x={1340} y={row.y} w={118} h={36} size={16} color={active ? GOLD : WHITE} valign="center"
-              style={{ pointerEvents: 'none' }}>{row.amount}</Box>
-            <Box x={1464} y={row.y} w={30} h={36} size={12} color={GOLD} valign="center"
-              style={{ pointerEvents: 'none' }}>PTS</Box>
+          <div key={r.label} style={active ? { filter: 'drop-shadow(0 0 10px rgba(250,183,0,0.9))' } : undefined}>
+            <Box img={A('round-bracket.png')} x={1297} y={r.y} w={140} h={31} style={{ pointerEvents: 'none' }} />
+            <Box x={1297} y={r.y} w={140} h={31} size={11} color={active ? GOLD : WHITE} align="center" valign="center"
+              style={{ pointerEvents: 'none', fontWeight: active ? 700 : 400 }}>
+              {r.label}
+            </Box>
           </div>
         );
       })}
 
-      {/* Bottom team bars */}
+      {/* Prize ladder — the current question's level is highlighted */}
+      {LADDER.map((row) => {
+        const active = row.lvl === activeLevel;
+        return (
+        <div key={row.lvl} style={active ? { filter: 'drop-shadow(0 0 10px rgba(250,183,0,0.95))' } : undefined}>
+          <Box img={A('score-number.png')} x={1240} y={row.y} w={74} h={33} style={{ pointerEvents: 'none' }} />
+          <Box img={A('score-bracket.png')} x={1322} y={row.y} w={175} h={36} style={{ pointerEvents: 'none' }} />
+          <Box x={1240} y={row.y} w={74} h={33} size={16} color={GOLD} align="center" valign="center"
+            style={{ pointerEvents: 'none' }}>{row.lvl}</Box>
+          <Box x={1340} y={row.y} w={118} h={36} size={16} color={active ? GOLD : WHITE} valign="center"
+            style={{ pointerEvents: 'none' }}>{LADDER_POINTS[row.lvl - 1].toLocaleString()}</Box>
+          <Box x={1464} y={row.y} w={30} h={36} size={12} color={GOLD} valign="center"
+            style={{ pointerEvents: 'none' }}>PTS</Box>
+        </div>
+        );
+      })}
+
+      {/* Bottom team bars — clickable in a buzzer round to lock the team that buzzed */}
       {teams.slice(0, 2).map((team, i) => {
         const s = TEAM_SLOTS[i];
-        const active = i === currentTeamIndex;
+        const locked = isBuzzer && lockedTeamIndex === i;
+        const active = locked || (!isBuzzer && i === currentTeamIndex);
         return (
           <div key={i} style={active ? { filter: 'drop-shadow(0 0 14px rgba(250,183,0,0.7))' } : undefined}>
             <Box img={A('team-bracket.png')} x={s.bx} y={884} w={497} h={94} style={{ pointerEvents: 'none' }} />
             <Box x={s.nameX} y={911} w={210} h={36} size={24} color="#F3E1F5" valign="center"
               style={{ pointerEvents: 'none' }}>{team.name}</Box>
-            <Box x={s.scoreX} y={897} w={180} h={59} size={40} color="#F3E1F5" valign="center"
-              style={{ pointerEvents: 'none' }}>{team.score.toLocaleString()}</Box>
+            <Box x={s.scoreX} y={897} w={160} h={59} size={36} color={team.score < 0 ? '#ff7a7a' : '#F3E1F5'}
+              align="center" valign="center" style={{ pointerEvents: 'none' }}>{team.score.toLocaleString()}</Box>
+            {awaitingBuzz && (
+              <Box as="button" className="hot hotspot" x={s.bx} y={884} w={497} h={94}
+                onClick={() => lockTeam(i)} aria-label={`${team.name} buzzed`}
+                style={{ borderRadius: 12 }} />
+            )}
           </div>
         );
       })}

@@ -1,9 +1,9 @@
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
+import { playSound } from '../lib/sound';
 import './screens.css';
 
 const LIGHT = '#F3E1F5';
-const GOLD = '#FAB700';
 
 // Frame 1 (3:12) — Home / Start
 export default function HomeScreen({ onStart, onAdmin }) {
@@ -21,14 +21,16 @@ export default function HomeScreen({ onStart, onAdmin }) {
         style={{ pointerEvents: 'none', letterSpacing: 4 }}>
         START
       </Box>
-      {/* Clickable hotspot over the whole start button instance (682×212 @ 427,711) */}
-      <Box as="button" className="hot hotspot" x={427} y={711} w={682} h={212} onClick={onStart} aria-label="Start" />
+      {/* Clickable hotspot over the start button graphic (492×134 @ 522,766) */}
+      <Box as="button" className="hot hotspot" x={522} y={766} w={492} h={134}
+        onClick={() => { playSound('click'); onStart?.(); }} aria-label="Start" />
 
-      {/* Admin entry (not in the Figma frame — small unobtrusive link) */}
-      <Box as="button" className="hot admin-link" x={28} y={978} w={220} h={28}
-        size={16} color={GOLD} onClick={onAdmin}>
-        ADMIN PANEL
-      </Box>
+      {/* Admin entry — styled pill button (matches the LOGIN screen's ADMIN PANEL tag) */}
+      <Box img={A('panels-buttons.png')} x={1202} y={34} w={301} h={77} style={{ pointerEvents: 'none' }} />
+      <Box x={1244} y={48} w={216} h={47} size={32} color={LIGHT} align="center" valign="center"
+        style={{ pointerEvents: 'none' }}>ADMIN PANEL</Box>
+      <Box as="button" className="hot hotspot" x={1202} y={34} w={301} h={77}
+        onClick={() => { playSound('click'); onAdmin?.(); }} aria-label="Admin Panel" style={{ borderRadius: 12 }} />
     </Stage>
   );
 }

@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "optimize:images": "node scripts/optimize-images.mjs"
+    "optimize:images": "node scripts/optimize-images.mjs",
+    "seed:sql": "node scripts/seed-quizzes.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.1",

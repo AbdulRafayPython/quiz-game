@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
+import { playSound } from '../lib/sound';
 import './screens.css';
 
 // Frame 3 (31:4) — Team Setup.
@@ -43,11 +44,13 @@ const TrashIcon = () => (
 export default function TeamSetupScreen({ onBack, onPlay }) {
   const [teams, setTeams] = useState([{ name: 'Team Alpha' }, { name: 'Team GenZ' }]);
 
-  const addTeam = () => setTeams((t) => (t.length >= MAX_TEAMS ? t : [...t, { name: '' }]));
-  const removeTeam = (i) =>
+  const addTeam = () => { playSound('click'); setTeams((t) => (t.length >= MAX_TEAMS ? t : [...t, { name: '' }])); };
+  const removeTeam = (i) => {
+    playSound('click');
     setTeams((t) => (t.length <= MIN_TEAMS ? t : t.filter((_, idx) => idx !== i)));
+  };
   const rename = (i, v) => setTeams((t) => t.map((tm, idx) => (idx === i ? { name: v } : tm)));
-  const play = () => onPlay(teams.map((t) => ({ name: t.name.trim() || 'Unnamed Team', score: 0 })));
+  const play = () => { playSound('click'); onPlay(teams.map((t) => ({ name: t.name.trim() || 'Unnamed Team', score: 0 }))); };
 
   const totalH = BORDER.top + teams.length * ROW_H + BORDER.bottom;
   const panelY = Math.max(-30, Math.round((1024 - totalH) / 2));
@@ -58,7 +61,7 @@ export default function TeamSetupScreen({ onBack, onPlay }) {
 
       {/* Back / Next */}
       <Box as="button" className="hot" img={A('back-btn.png')} x={0} y={-30} w={308} h={205}
-        onClick={onBack} aria-label="Back" />
+        onClick={() => { playSound('click'); onBack?.(); }} aria-label="Back" />
       <Box as="button" className="hot" img={A('next-btn.png')} x={1213} y={-30} w={308} h={205}
         onClick={play} aria-label="Play" />
 

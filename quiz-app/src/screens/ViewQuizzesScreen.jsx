@@ -4,6 +4,7 @@ import Box, { A } from '../components/Box';
 import { QUIZZES } from '../data/quizzes';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { listQuizzes, deleteQuiz } from '../lib/api';
+import { playSound } from '../lib/sound';
 import './screens.css';
 
 const fmtDate = (s) => {
@@ -109,12 +110,13 @@ export default function ViewQuizzesScreen({ onBack, onAddNew, onEditQuiz }) {
     [quizzes, start, pageSize]
   );
 
-  const goto = (p) => setPage(Math.min(Math.max(1, p), pageCount));
+  const goto = (p) => { playSound('click'); setPage(Math.min(Math.max(1, p), pageCount)); };
   const changeSize = (n) => {
     setPageSize(n);
     setPage(1);
   };
   const remove = (id) => {
+    playSound('click');
     setQuizzes((qs) => qs.filter((q) => q.id !== id));
     if (isSupabaseConfigured) deleteQuiz(id).catch((e) => console.error('Delete failed:', e.message));
   };
@@ -131,9 +133,9 @@ export default function ViewQuizzesScreen({ onBack, onAddNew, onEditQuiz }) {
 
       {/* Hotspots over the baked top buttons (positions/sizes scale with panel) */}
       <Box as="button" className="hot hotspot" x={PANEL.x + R(35)} y={PANEL.y + R(26)} w={R(246)} h={R(52)}
-        onClick={onBack} aria-label="Back to Dashboard" style={{ borderRadius: 10 }} />
+        onClick={() => { playSound('click'); onBack?.(); }} aria-label="Back to Dashboard" style={{ borderRadius: 10 }} />
       <Box as="button" className="hot hotspot" x={PANEL.x + R(1042)} y={PANEL.y + R(28)} w={R(197)} h={R(51)}
-        onClick={onAddNew} aria-label="Add New Quiz" style={{ borderRadius: 10 }} />
+        onClick={() => { playSound('click'); onAddNew?.(); }} aria-label="Add New Quiz" style={{ borderRadius: 10 }} />
 
       {/* Live, functional table card (covers the baked mockup table). Kept at base
           size and scaled via transform so its fixed column layout stays aligned. */}
@@ -168,7 +170,7 @@ export default function ViewQuizzesScreen({ onBack, onAddNew, onEditQuiz }) {
               <div className="vq-cell" style={cellStyle(COLS[5])}>
                 <div className="vq-actions">
                   <button className="vq-iconbtn edit" aria-label={`Edit ${quiz.name}`}
-                    onClick={() => onEditQuiz?.(quiz)}>
+                    onClick={() => { playSound('click'); onEditQuiz?.(quiz); }}>
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
                       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 20h9" />

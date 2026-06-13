@@ -41,10 +41,17 @@ create table if not exists public.quizzes (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
   rounds     int  not null default 1,
-  timer      int  not null default 15,
+  timer      int  not null default 25,            -- normal round countdown (seconds)
+  timer_round_timer int not null default 10,      -- shorter countdown for the Timer round
+  correct_points int not null default 1000,       -- points awarded on a correct answer
+  penalty_points int not null default 500,        -- points subtracted on wrong/timeout (negative marking)
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
+-- Backfill the scoring/timer columns on databases created before they existed.
+alter table public.quizzes add column if not exists timer_round_timer int not null default 10;
+alter table public.quizzes add column if not exists correct_points int not null default 1000;
+alter table public.quizzes add column if not exists penalty_points int not null default 500;
 
 -- ---------- QUESTIONS -------------------------------------------------------
 create table if not exists public.questions (
@@ -56,6 +63,7 @@ create table if not exists public.questions (
   round      int  not null default 1,
   image_url  text,
   video_url  text,
+  poster_url text,                                  -- WebP first-frame poster for fast video display
   position   int  not null default 0,
   created_at timestamptz not null default now()
 );
@@ -72,8 +80,11 @@ create table if not exists public.game_results (
   created_at timestamptz not null default now()
 );
 
--- quiz + question count, used by the View Quizzes table
-create or replace view public.quizzes_with_counts as
+-- quiz + question count, used by the View Quizzes table.
+-- Dropped first: `q.*` widened when the scoring columns were added, and
+-- CREATE OR REPLACE VIEW cannot reorder/rename existing view columns.
+drop view if exists public.quizzes_with_counts;
+create view public.quizzes_with_counts as
   select q.*, coalesce(c.cnt, 0)::int as question_count
   from public.quizzes q
   left join (select quiz_id, count(*) cnt from public.questions group by quiz_id) c

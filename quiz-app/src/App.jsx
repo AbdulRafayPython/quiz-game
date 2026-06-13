@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { isSupabaseConfigured } from './lib/supabase';
-import { getSession, getCurrentRole, signOut, onAuthChange } from './lib/api';
+import { getSession, getCurrentRole, signOut, onAuthChange, listQuestions } from './lib/api';
 import HomeScreen from './screens/HomeScreen';
 import ModeSelectScreen from './screens/ModeSelectScreen';
 import TeamSetupScreen from './screens/TeamSetupScreen';
@@ -11,6 +11,8 @@ import DashboardScreen from './screens/DashboardScreen';
 import CreateQuizScreen from './screens/CreateQuizScreen';
 import ViewQuizzesScreen from './screens/ViewQuizzesScreen';
 import LoginScreen from './screens/LoginScreen';
+import SoundSettings from './components/SoundSettings';
+import { startMusic, stopAllSounds, playSound } from './lib/sound';
 import './App.css';
 
 // Dev helper: open ?s=<screen> to jump straight to a screen (with sample data)
@@ -34,30 +36,61 @@ export default function App() {
     initialScreen === 'gameplay' ? { id: 'chemistry', name: 'Chemistry Quiz' } : null
   );
   const [results, setResults] = useState(initialScreen === 'results' ? SAMPLE_RESULTS : []);
+  // Loaded questions + scoring for an admin-created quiz (null => use built-in demo set).
+  const [quizData, setQuizData] = useState(null);
+  // Quiz row passed to the Create/Edit screen when editing (null => create new).
+  const [editingQuiz, setEditingQuiz] = useState(null);
   const [authed, setAuthed] = useState(false);
+  // While true we're still checking for a stored session — render a loader rather
+  // than flashing the login screen when a valid token already exists.
+  const [booting, setBooting] = useState(isSupabaseConfigured && initialScreen.startsWith('login'));
 
   // Restore an existing Supabase session on load: skip the login screen and
-  // route to the right area by role. Honours an explicit ?s= dev override.
+  // route to the start page. Honours an explicit ?s= dev override.
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let active = true;
-    getSession().then(async (session) => {
-      if (!active || !session) return;
-      setAuthed(true);
-      const role = await getCurrentRole().catch(() => 'player');
-      setScreen((s) => (s.startsWith('login') ? (role === 'admin' ? 'dashboard' : 'home') : s));
-    });
+    (async () => {
+      try {
+        const session = await getSession();
+        if (!active || !session) return;
+        const role = await getCurrentRole().catch(() => null);
+        if (!active) return;
+        if (role === 'admin') {
+          setAuthed(true);
+          if (initialScreen.startsWith('login')) {
+            setScreen('home');
+            startMusic(); // resume background music (plays on first user gesture)
+          }
+        } else {
+          // Only the admin account is allowed; drop any other (e.g. legacy) session.
+          await signOut();
+          if (active) setAuthed(false);
+        }
+      } finally {
+        if (active) setBooting(false);
+      }
+    })();
     const unsub = onAuthChange((session) => active && setAuthed(Boolean(session)));
     return () => { active = false; unsub(); };
   }, []);
 
   const handleLogout = async () => {
+    playSound('click');
+    stopAllSounds();
     await signOut();
     setAuthed(false);
     setTeams([]);
     setSelectedQuiz(null);
     setResults([]);
     setScreen('login-game');
+  };
+
+  // Enter the start page. Background music belongs to the whole game flow, so it
+  // starts here regardless of how we arrived (game login OR admin → dashboard → exit).
+  const goHome = () => {
+    startMusic();
+    setScreen('home');
   };
 
   const handleSelectMode = (mode) => {
@@ -74,8 +107,29 @@ export default function App() {
     setScreen('quiz-select');
   };
 
-  const handleSelectQuiz = (category) => {
+  const handleSelectQuiz = async (category) => {
     setSelectedQuiz(category);
+    setQuizData(null);
+    // For an admin-created quiz, load its questions + scoring/timer settings.
+    if (category?.__real && isSupabaseConfigured) {
+      try {
+        const rows = await listQuestions(category.id);
+        if (rows?.length) {
+          const questions = rows.map((r) => ({
+            q: r.text, options: r.options, answer: r.correct,
+            round: r.round ?? 5, image_url: r.image_url, video_url: r.video_url, poster_url: r.poster_url,
+          }));
+          const scoring = {};
+          if (category.correct_points != null) scoring.correctPoints = category.correct_points;
+          if (category.penalty_points != null) scoring.penaltyPoints = category.penalty_points;
+          if (category.timer != null) scoring.timer = category.timer;
+          if (category.timer_round_timer != null) scoring.timerRoundTimer = category.timer_round_timer;
+          setQuizData({ questions, scoring });
+        }
+      } catch (e) {
+        console.error('Load quiz failed:', e.message); // fall back to the demo set
+      }
+    }
     setScreen('gameplay');
   };
 
@@ -87,29 +141,44 @@ export default function App() {
   const handleRestart = () => {
     setTeams([]);
     setSelectedQuiz(null);
+    setQuizData(null);
     setResults([]);
-    setScreen('home');
+    goHome();
   };
 
   const isQuickPlay = teams.length === 1 && teams[0]?.name === 'Player 1';
 
+  // Still verifying a stored session — show a loader instead of the login screen.
+  if (booting) {
+    return (
+      <div className="app-shell app-boot">
+        <div className="app-boot-spinner" role="status" aria-label="Loading" />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
-      {isSupabaseConfigured && authed && !screen.startsWith('login') && (
-        <button className="app-logout" onClick={handleLogout} aria-label="Log out">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
-          </svg>
-          Log out
-        </button>
+      {!screen.startsWith('login') && (
+        <div className="app-topbar">
+          <SoundSettings />
+          {isSupabaseConfigured && authed && (
+            <button className="app-logout" onClick={handleLogout} aria-label="Log out">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="m16 17 5-5-5-5" /><path d="M21 12H9" />
+              </svg>
+              Log out
+            </button>
+          )}
+        </div>
       )}
 
       {screen === 'login-game' && (
         <LoginScreen
           variant="game"
-          onLogin={() => setScreen('home')}
+          onLogin={goHome}
           onToggle={() => setScreen('login-admin')}
         />
       )}
@@ -125,7 +194,7 @@ export default function App() {
       {screen === 'home' && (
         <HomeScreen
           onStart={() => setScreen('mode-select')}
-          onAdmin={() => setScreen('login-admin')}
+          onAdmin={() => { stopAllSounds(); setScreen('login-admin'); }}
         />
       )}
 
@@ -148,6 +217,8 @@ export default function App() {
         <GameplayScreen
           quizCategory={selectedQuiz}
           initialTeams={teams}
+          questions={quizData?.questions || null}
+          scoring={quizData?.scoring || null}
           onFinish={handleGameplayFinish}
           initialLifelineBg={params.get('bg')}
         />
@@ -159,21 +230,24 @@ export default function App() {
 
       {screen === 'dashboard' && (
         <DashboardScreen
-          onExit={() => setScreen('home')}
-          onCreateQuiz={() => setScreen('create-quiz')}
+          onExit={goHome}
+          onCreateQuiz={() => { setEditingQuiz(null); setScreen('create-quiz'); }}
           onViewQuizzes={() => setScreen('view-quizzes')}
         />
       )}
 
       {screen === 'create-quiz' && (
-        <CreateQuizScreen onBack={() => setScreen('dashboard')} />
+        <CreateQuizScreen
+          editQuiz={editingQuiz}
+          onBack={() => { setEditingQuiz(null); setScreen(editingQuiz ? 'view-quizzes' : 'dashboard'); }}
+        />
       )}
 
       {screen === 'view-quizzes' && (
         <ViewQuizzesScreen
           onBack={() => setScreen('dashboard')}
-          onAddNew={() => setScreen('create-quiz')}
-          onEditQuiz={() => setScreen('create-quiz')}
+          onAddNew={() => { setEditingQuiz(null); setScreen('create-quiz'); }}
+          onEditQuiz={(quiz) => { setEditingQuiz(quiz); setScreen('create-quiz'); }}
         />
       )}
     </div>

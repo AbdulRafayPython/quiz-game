@@ -1,12 +1,19 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { createQuiz, saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia } from '../lib/api';
+import { createQuiz, updateQuiz, getQuiz, listQuestions, saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia } from '../lib/api';
+import { imageToWebp, videoPoster } from '../lib/media';
+import { ROUND_TYPES, roundById, DEFAULT_SCORING } from '../data/rounds';
+import { playSound } from '../lib/sound';
 import './screens.css';
 
 // DB question row -> local form/table shape
-const mapRow = (r) => ({ id: r.id, question: r.text, options: r.options, correct: r.correct });
+const mapRow = (r) => ({
+  id: r.id, question: r.text, options: r.options, correct: r.correct,
+  round: r.round ?? 5, image_url: r.image_url ?? null, video_url: r.video_url ?? null,
+  poster_url: r.poster_url ?? null,
+});
 
 // Frame "Create Quiz" (51:77) — admin add-question screen.
 // The panel art supplies the outer frame + "ADD NEW QUESTION" title; the whole
@@ -36,13 +43,12 @@ const CONTENT = {
 };
 
 const OPT_LETTERS = ['A', 'B', 'C', 'D'];
-const ROUNDS = [1, 2, 3, 4, 5];
 const PAGE_SIZE = 4;
 
 const SEED_QUESTIONS = [
-  { id: 1, question: 'Solve the mathematical equation? 2+2+2+2x2 = ?', options: ['10', '8', '12', '14'], correct: 0 },
-  { id: 2, question: 'What is the value of 3 + 7 ?', options: ['10', '11', '12', '9'], correct: 0 },
-  { id: 3, question: 'Which planet is known as the Red Planet?', options: ['Mars', 'Venus', 'Jupiter', 'Saturn'], correct: 0 },
+  { id: 1, question: 'Solve the mathematical equation? 2+2+2+2x2 = ?', options: ['10', '8', '12', '14'], correct: 0, round: 1 },
+  { id: 2, question: 'What is the value of 3 + 7 ?', options: ['10', '11', '12', '9'], correct: 0, round: 2 },
+  { id: 3, question: 'Which planet is known as the Red Planet?', options: ['Mars', 'Venus', 'Jupiter', 'Saturn'], correct: 0, round: 5 },
 ];
 
 const Check = () => (
@@ -61,25 +67,63 @@ const TrashIcon = () => (
     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
 );
 
-const emptyForm = () => ({ question: '', options: ['', '', '', ''], correct: 0 });
+const emptyForm = () => ({ question: '', options: ['', '', '', ''], correct: 0, round: 5 });
 
-export default function CreateQuizScreen({ onBack }) {
+export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const [form, setForm] = useState(emptyForm());
   const [quizName, setQuizName] = useState('');
-  const [rounds, setRounds] = useState(1);
-  const [timer, setTimer] = useState(15);
+  const [timer, setTimer] = useState(DEFAULT_SCORING.timer);
+  const [timerRoundTimer, setTimerRoundTimer] = useState(DEFAULT_SCORING.timerRoundTimer);
+  const [correctPoints, setCorrectPoints] = useState(DEFAULT_SCORING.correctPoints);
+  const [penaltyPoints, setPenaltyPoints] = useState(DEFAULT_SCORING.penaltyPoints);
   const [imageName, setImageName] = useState('');
   const [videoName, setVideoName] = useState('');
-  const [questions, setQuestions] = useState(isSupabaseConfigured ? [] : SEED_QUESTIONS);
+  const [questions, setQuestions] = useState(isSupabaseConfigured ? [] : (editQuiz ? [] : SEED_QUESTIONS));
   const [editingId, setEditingId] = useState(null);
   const [page, setPage] = useState(1);
-  const [quizId, setQuizId] = useState(null);
+  const [quizId, setQuizId] = useState(editQuiz?.id ?? null);
   const [imageFile, setImageFile] = useState(null);
   const [videoFile, setVideoFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(Boolean(editQuiz && isSupabaseConfigured));
 
   const imageRef = useRef(null);
   const videoRef = useRef(null);
+
+  // Edit mode: load the full quiz (name + scoring/timer) and its questions so the
+  // form opens fully pre-filled. The list row only carries summary fields, so we
+  // fetch the authoritative row + questions from the backend.
+  useEffect(() => {
+    if (!editQuiz) return;
+    // Always prefill the name from what we already have for instant feedback.
+    setQuizName(editQuiz.name ?? '');
+    if (!isSupabaseConfigured) return;
+
+    let active = true;
+    (async () => {
+      try {
+        const [quiz, qs] = await Promise.all([
+          getQuiz(editQuiz.id),
+          listQuestions(editQuiz.id),
+        ]);
+        if (!active) return;
+        if (quiz) {
+          setQuizName(quiz.name ?? '');
+          if (quiz.timer != null) setTimer(quiz.timer);
+          if (quiz.timer_round_timer != null) setTimerRoundTimer(quiz.timer_round_timer);
+          if (quiz.correct_points != null) setCorrectPoints(quiz.correct_points);
+          if (quiz.penalty_points != null) setPenaltyPoints(quiz.penalty_points);
+        }
+        setQuestions((qs ?? []).map(mapRow));
+      } catch (e) {
+        console.error('Load quiz for edit failed:', e.message);
+        alert('Could not load this quiz: ' + e.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [editQuiz]);
 
   const setOption = (i, v) => setForm((f) => ({ ...f, options: f.options.map((o, idx) => (idx === i ? v : o)) }));
 
@@ -89,6 +133,7 @@ export default function CreateQuizScreen({ onBack }) {
   };
 
   const saveQuestion = async () => {
+    playSound('click');
     if (!form.question.trim() || form.options.some((o) => !o.trim())) return;
 
     // Local-only behaviour when no backend is configured.
@@ -105,19 +150,41 @@ export default function CreateQuizScreen({ onBack }) {
 
     setSaving(true);
     try {
-      // Lazily create the quiz row on the first saved question.
+      // Lazily create the quiz row on the first saved question; when the quiz
+      // already exists (editing, or a later save), keep its settings in sync.
+      const quizSettings = {
+        name: quizName.trim() || 'Untitled Quiz',
+        rounds: ROUND_TYPES.length,
+        timer: Number(timer),
+        timerRoundTimer: Number(timerRoundTimer),
+        correctPoints: Number(correctPoints),
+        penaltyPoints: Number(penaltyPoints),
+      };
       let qid = quizId;
       if (!qid) {
-        const quiz = await createQuiz({ name: quizName.trim() || 'Untitled Quiz', rounds: Number(rounds), timer: Number(timer) });
+        const quiz = await createQuiz(quizSettings);
         qid = quiz.id;
         setQuizId(qid);
+      } else {
+        await updateQuiz(qid, quizSettings);
       }
-      const image_url = imageFile ? await uploadMedia(imageFile) : null;
-      const video_url = videoFile ? await uploadMedia(videoFile) : null;
+      // Optimize before upload: transcode the image to lightweight WebP, and grab
+      // a WebP poster frame from the video so it appears instantly in gameplay.
+      // The heavy originals never leave the device (image) / load lazily (video).
+      const image_url = imageFile ? await uploadMedia(await imageToWebp(imageFile)) : null;
+      let video_url = null;
+      let poster_url = null;
+      if (videoFile) {
+        const poster = await videoPoster(videoFile);
+        [video_url, poster_url] = await Promise.all([
+          uploadMedia(videoFile),
+          poster ? uploadMedia(poster) : Promise.resolve(null),
+        ]);
+      }
       const saved = await apiSaveQuestion(qid, {
         id: typeof editingId === 'string' ? editingId : undefined,
         question: form.question, options: form.options, correct: form.correct,
-        image_url, video_url, position: questions.length,
+        round: form.round, image_url, video_url, poster_url, position: questions.length,
       });
       setQuestions((qs) => (qs.some((q) => q.id === saved.id)
         ? qs.map((q) => (q.id === saved.id ? mapRow(saved) : q))
@@ -133,10 +200,12 @@ export default function CreateQuizScreen({ onBack }) {
   };
 
   const editQuestion = (q) => {
-    setForm({ question: q.question, options: [...q.options], correct: q.correct });
+    playSound('click');
+    setForm({ question: q.question, options: [...q.options], correct: q.correct, round: q.round ?? 5 });
     setEditingId(q.id);
   };
   const deleteQuestion = (id) => {
+    playSound('click');
     setQuestions((qs) => qs.filter((q) => q.id !== id));
     if (editingId === id) clearForm();
     if (isSupabaseConfigured && typeof id === 'string') {
@@ -148,7 +217,7 @@ export default function CreateQuizScreen({ onBack }) {
   const safePage = Math.min(page, pageCount);
   const start = (safePage - 1) * PAGE_SIZE;
   const rows = questions.slice(start, start + PAGE_SIZE);
-  const goto = (p) => setPage(Math.min(Math.max(1, p), pageCount));
+  const goto = (p) => { playSound('click'); setPage(Math.min(Math.max(1, p), pageCount)); };
 
   return (
     <Stage className="screen-fade">
@@ -161,6 +230,17 @@ export default function CreateQuizScreen({ onBack }) {
       <div className="cq-form"
         style={{ position: 'absolute', left: CONTENT.x, top: CONTENT.y, width: CONTENT.w, height: CONTENT.h }}>
 
+        {loading && (
+          <div className="cq-loading" style={{
+            position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(10, 12, 30, 0.55)', backdropFilter: 'blur(2px)',
+            borderRadius: 18, fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: 0.5,
+          }}>
+            Loading quiz…
+          </div>
+        )}
+
         <div className="cq-top">
           {/* LEFT: question & answers */}
           <div className="cq-col-left">
@@ -169,6 +249,16 @@ export default function CreateQuizScreen({ onBack }) {
               <label className="cq-label">Question</label>
               <textarea className="cq-textarea" placeholder="Enter the question..."
                 value={form.question} onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))} />
+            </div>
+            <div className="cq-field">
+              <label className="cq-label">Round Type</label>
+              <div className="cq-select-wrap">
+                <select className="cq-select" value={form.round}
+                  onChange={(e) => setForm((f) => ({ ...f, round: Number(e.target.value) }))}>
+                  {ROUND_TYPES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+                <span className="cq-caret">▾</span>
+              </div>
             </div>
             {OPT_LETTERS.map((letter, i) => (
               <div className="cq-opt-row" key={letter}>
@@ -192,19 +282,29 @@ export default function CreateQuizScreen({ onBack }) {
               <input className="cq-input" placeholder="Enter quiz name"
                 value={quizName} onChange={(e) => setQuizName(e.target.value)} />
             </div>
-            <div className="cq-field">
-              <label className="cq-label">Rounds</label>
-              <div className="cq-select-wrap">
-                <select className="cq-select" value={rounds} onChange={(e) => setRounds(Number(e.target.value))}>
-                  {ROUNDS.map((r) => <option key={r} value={r}>Round {r}</option>)}
-                </select>
-                <span className="cq-caret">▾</span>
+            <div className="cq-field cq-field-row">
+              <div className="cq-subfield">
+                <label className="cq-label">Timer (Seconds)</label>
+                <input className="cq-input" type="number" min={5} max={300}
+                  value={timer} onChange={(e) => setTimer(e.target.value)} />
+              </div>
+              <div className="cq-subfield">
+                <label className="cq-label">Timer Round (Seconds)</label>
+                <input className="cq-input" type="number" min={3} max={300}
+                  value={timerRoundTimer} onChange={(e) => setTimerRoundTimer(e.target.value)} />
               </div>
             </div>
-            <div className="cq-field">
-              <label className="cq-label">Timer (Seconds)</label>
-              <input className="cq-input" type="number" min={5} max={300}
-                value={timer} onChange={(e) => setTimer(e.target.value)} />
+            <div className="cq-field cq-field-row">
+              <div className="cq-subfield">
+                <label className="cq-label">Correct Points</label>
+                <input className="cq-input" type="number" min={0} step={10}
+                  value={correctPoints} onChange={(e) => setCorrectPoints(e.target.value)} />
+              </div>
+              <div className="cq-subfield">
+                <label className="cq-label">Penalty Points</label>
+                <input className="cq-input" type="number" min={0} step={10}
+                  value={penaltyPoints} onChange={(e) => setPenaltyPoints(e.target.value)} />
+              </div>
             </div>
             <div className="cq-field">
               <label className="cq-label">Image Upload (Optional)</label>
@@ -215,7 +315,7 @@ export default function CreateQuizScreen({ onBack }) {
                   <path d="m21 15-5-5L5 21" /></svg>
                 <div>
                   <div className="cq-upload-main">{imageName || 'Upload Image'}</div>
-                  <div className="cq-upload-hint">JPG, PNG (Max 2 MB)</div>
+                  <div className="cq-upload-hint">JPG, PNG → auto-optimized to WebP</div>
                 </div>
                 <input ref={imageRef} type="file" accept="image/*" hidden
                   onChange={(e) => { const f = e.target.files?.[0]; setImageFile(f || null); setImageName(f?.name || ''); }} />
@@ -245,7 +345,7 @@ export default function CreateQuizScreen({ onBack }) {
             <div className="cq-thead">
               <div className="cq-th cq-c-center">#</div>
               <div className="cq-th">QUESTION</div>
-              <div className="cq-th cq-c-center">OPTIONS</div>
+              <div className="cq-th cq-c-center">ROUND</div>
               <div className="cq-th cq-c-center">CORRECT OPTION</div>
               <div className="cq-th cq-c-center">ACTIONS</div>
             </div>
@@ -254,7 +354,7 @@ export default function CreateQuizScreen({ onBack }) {
                 <div className="cq-trow" key={q.id}>
                   <div className="cq-td cq-c-center">{start + i + 1}</div>
                   <div className="cq-td" title={q.question}>{q.question}</div>
-                  <div className="cq-td cq-c-center">{OPT_LETTERS.join(', ')}</div>
+                  <div className="cq-td cq-c-center">{roundById(q.round ?? 5).short}</div>
                   <div className="cq-td cq-c-center">{OPT_LETTERS[q.correct]}</div>
                   <div className="cq-c-actions">
                     <button className="vq-iconbtn edit" aria-label="Edit question" onClick={() => editQuestion(q)}>
@@ -280,11 +380,11 @@ export default function CreateQuizScreen({ onBack }) {
 
         {/* Action buttons */}
         <div className="cq-actions-bar">
-          <button className="cq-btn back" onClick={onBack}>‹ Back to Dashboard</button>
+          <button className="cq-btn back" onClick={() => { playSound('click'); onBack?.(); }}>‹ Back to Dashboard</button>
           <button className="cq-btn save" onClick={saveQuestion} disabled={saving}>
             {saving ? 'Saving…' : editingId != null ? 'Update Question' : 'Save Question'}
           </button>
-          <button className="cq-btn clear" onClick={clearForm}>Clear</button>
+          <button className="cq-btn clear" onClick={() => { playSound('click'); clearForm(); }}>Clear</button>
         </div>
       </div>
     </Stage>

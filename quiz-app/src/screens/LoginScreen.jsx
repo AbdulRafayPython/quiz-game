@@ -2,10 +2,24 @@ import { useState } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { signIn, signInOrSignUp, getCurrentRole, signOut } from '../lib/api';
+import { signIn, getCurrentRole, signOut } from '../lib/api';
+import { playSound } from '../lib/sound';
 import './screens.css';
 
 const LIGHT = '#F3E1F5';
+
+// Map raw auth errors to friendly, panel-aware messages.
+function friendlyAuthError(err, variant) {
+  const msg = err?.message || '';
+  if (msg === 'NOT_ADMIN') {
+    return variant === 'admin'
+      ? 'This account is not an admin.'
+      : 'Only the admin account can run the game.';
+  }
+  if (/invalid login credentials/i.test(msg)) return 'Incorrect username or password.';
+  if (/email not confirmed/i.test(msg)) return 'Email confirmation is on — disable it in Supabase (see README).';
+  return msg || 'Login failed.';
+}
 
 // Frame 9 "LOGIN GAME" (199:13) and Frame 7 "ADMIN PANEL" (47:59).
 // Each is the stage background + a baked login panel (username/password/LOGIN
@@ -36,10 +50,16 @@ export default function LoginScreen({ variant = 'game', onLogin, onToggle }) {
   const submit = async (e) => {
     e?.preventDefault?.();
     if (busy) return;
+    playSound('click');
     setError('');
 
-    // No backend configured yet → pass-through stub so the app still works.
+    // No backend configured: admin can't be verified, so it's blocked. The game
+    // panel falls back to a local demo so the app is still explorable offline.
     if (!isSupabaseConfigured) {
+      if (variant === 'admin') {
+        setError('Admin login requires the backend to be configured.');
+        return;
+      }
       onLogin?.({ username, password });
       return;
     }
@@ -50,21 +70,17 @@ export default function LoginScreen({ variant = 'game', onLogin, onToggle }) {
 
     setBusy(true);
     try {
-      if (variant === 'admin') {
-        // Admins must already exist (promoted via SQL); no self-register here.
-        await signIn(username, password);
-        const role = await getCurrentRole();
-        if (role !== 'admin') {
-          await signOut();
-          throw new Error('This account is not an admin.');
-        }
-      } else {
-        // Players self-register on first login.
-        await signInOrSignUp(username, password, 'player');
+      // Both panels require the existing admin account (no self-registration):
+      // the admin both manages quizzes and hosts games.
+      await signIn(username, password);
+      const role = await getCurrentRole();
+      if (role !== 'admin') {
+        await signOut();
+        throw new Error('NOT_ADMIN');
       }
       onLogin?.({ username, password });
     } catch (err) {
-      setError(err?.message || 'Login failed.');
+      setError(friendlyAuthError(err, variant));
     } finally {
       setBusy(false);
     }
@@ -90,7 +106,7 @@ export default function LoginScreen({ variant = 'game', onLogin, onToggle }) {
       <Box x={v.tagTextX} y={48} w={v.tagTextW} h={47} size={32} color={LIGHT} align="center" valign="center"
         style={{ pointerEvents: 'none' }}>{v.tagLabel}</Box>
       <Box as="button" className="hot hotspot" x={1202} y={34} w={301} h={77}
-        onClick={onToggle} aria-label={`Switch to ${v.tagLabel}`} style={{ borderRadius: 12 }} />
+        onClick={() => { playSound('click'); onToggle?.(); }} aria-label={`Switch to ${v.tagLabel}`} style={{ borderRadius: 12 }} />
 
       {/* Live fields */}
       {field(v.fieldX, v.userY, v.fieldW, v.fieldH, username, setUsername, 'Username')}
