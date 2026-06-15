@@ -282,17 +282,10 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
               <input className="cq-input" placeholder="Enter quiz name"
                 value={quizName} onChange={(e) => setQuizName(e.target.value)} />
             </div>
-            <div className="cq-field cq-field-row">
-              <div className="cq-subfield">
-                <label className="cq-label">Timer (Seconds)</label>
-                <input className="cq-input" type="number" min={5} max={300}
-                  value={timer} onChange={(e) => setTimer(e.target.value)} />
-              </div>
-              <div className="cq-subfield">
-                <label className="cq-label">Timer Round (Seconds)</label>
-                <input className="cq-input" type="number" min={3} max={300}
-                  value={timerRoundTimer} onChange={(e) => setTimerRoundTimer(e.target.value)} />
-              </div>
+            <div className="cq-field">
+              <label className="cq-label">Timer (Seconds)</label>
+              <input className="cq-input" type="number" min={5} max={300}
+                value={timer} onChange={(e) => setTimer(e.target.value)} />
             </div>
             <div className="cq-field cq-field-row">
               <div className="cq-subfield">
