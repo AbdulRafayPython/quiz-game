@@ -1,22 +1,41 @@
 # Game sounds
 
-Audio cues used in gameplay (wired in `src/lib/sound.js`). Replace any file with
-your own (keep the same name) and it plays automatically. A missing file just
-means that cue is silent.
+Audio that follows the player through the game, wired in `src/lib/sound.js` (a
+small "music director"). Replace any file with your own (keep the same name) and
+it plays automatically. A missing file just means that part is silent.
 
-| File           | Cue        | When it plays                                                       |
-|----------------|------------|---------------------------------------------------------------------|
-| `music.mp3`    | music      | Loops quietly in the background for the whole game                   |
-| `audience.mp3` | audience   | Teacher uses the **Ask Audience** lifeline (KBC crowd clip)          |
-| `suspense.mp3` | suspense   | Loops after a team **locks an answer**, while the timer counts down  |
-| `lock.mp3`     | lock       | The instant an answer is **locked in**                              |
-| `correct.wav`  | correct    | Answer revealed and it was **correct**                              |
-| `wrong.wav`    | wrong      | Answer revealed and it was **wrong** (or time ran out)              |
+There is always at most **one background track** playing, chosen by which screen
+you're on (App drives this from its screen state). Switching screens stops the
+previous track, so a screen's music never bleeds into the next.
+
+| File               | Screen / phase                         | Loops? |
+|--------------------|----------------------------------------|--------|
+| `theme-intro.mp3`  | Home / mode-select (title theme)        | yes    |
+| `round-start.mp3`  | After picking a mode, through team setup | yes    |
+| `fanfare.wav`      | Quiz-selection screen                    | yes    |
+| `question-bed.mp3` | Gameplay — "Main Theme" thinking music   | yes    |
+| `win.wav`          | Results — winner music                   | **no** (plays once) |
+
+On top of the background, short **cues** fire at the moments that matter (and get
+the background out of their way):
+
+| File                 | Cue       | When it plays                                    |
+|----------------------|-----------|--------------------------------------------------|
+| `correct.wav`        | correct   | Answer revealed and it was **correct** — lowers bg |
+| `wrong.wav`          | wrong     | Answer revealed **wrong** / timed out — lowers bg  |
+| `audience.mp3`       | audience  | **Ask the Audience** lifeline — pauses bg          |
+| `call_a_friend.mp3`  | friend    | **Phone a Friend** lifeline — pauses bg            |
+| `button_click.mp3`   | click     | UI button click (no ducking)                      |
+
+A "suspense" hold (set while a locked answer awaits its reveal) also dips the
+background to a tense hush — see `setSuspense()` in `src/lib/sound.js`.
 
 ## Notes
-- `music.mp3` and `suspense.mp3` are looped — use clips that loop cleanly.
-- Background music plays at low volume (0.22) so it doesn't drown the cues; tweak
+- Looping tracks should loop cleanly. `win.wav` plays once and then stops; it is
+  also stopped when you leave the results screen.
+- The background plays at low volume (0.22) so it never drowns the cues; tweak
   per-cue volume in `src/lib/sound.js`.
 - Browsers block audio until the first click/tap, so music starts once the user
-  has interacted with the page (which they have by the time gameplay begins).
-- Supply your own licensed clips — none are committed as copyrighted audio.
+  has interacted with the page.
+- The bundled clips are extracted from the QSTSS competition deck (Millionaire
+  template). Swap in your own licensed clips for any you can't ship.

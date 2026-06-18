@@ -12,7 +12,10 @@ import CreateQuizScreen from './screens/CreateQuizScreen';
 import ViewQuizzesScreen from './screens/ViewQuizzesScreen';
 import LoginScreen from './screens/LoginScreen';
 import SoundSettings from './components/SoundSettings';
-import { startMusic, stopAllSounds, playSound } from './lib/sound';
+import {
+  enterMenuMusic, enterSetupMusic, enterSelectMusic, enterGameplayMusic, enterResultsMusic,
+  stopMusic, stopAllSounds, playSound,
+} from './lib/sound';
 import './App.css';
 
 // Dev helper: open ?s=<screen> to jump straight to a screen (with sample data)
@@ -59,8 +62,7 @@ export default function App() {
         if (role === 'admin') {
           setAuthed(true);
           if (initialScreen.startsWith('login')) {
-            setScreen('home');
-            startMusic(); // resume background music (plays on first user gesture)
+            setScreen('home'); // the screen→music effect resumes the menu theme
           }
         } else {
           // Only the admin account is allowed; drop any other (e.g. legacy) session.
@@ -75,6 +77,22 @@ export default function App() {
     return () => { active = false; unsub(); };
   }, []);
 
+  // The music follows the player from screen to screen. Each screen owns one
+  // background track; switching screens stops the previous one (so a screen's
+  // music never bleeds into the next). enterX() is idempotent, so staying within
+  // the same phase — e.g. home ↔ mode-select — never restarts the track.
+  useEffect(() => {
+    switch (screen) {
+      case 'home':
+      case 'mode-select': enterMenuMusic(); break;     // title theme
+      case 'team-setup': enterSetupMusic(); break;     // "round-start" through setup
+      case 'quiz-select': enterSelectMusic(); break;   // quiz-selection fanfare
+      case 'gameplay': enterGameplayMusic(); break;    // question bed
+      case 'results': enterResultsMusic(); break;      // winner music (plays once)
+      default: stopMusic(); break;                     // login + admin area → silence
+    }
+  }, [screen]);
+
   const handleLogout = async () => {
     playSound('click');
     stopAllSounds();
@@ -86,12 +104,8 @@ export default function App() {
     setScreen('login-game');
   };
 
-  // Enter the start page. Background music belongs to the whole game flow, so it
-  // starts here regardless of how we arrived (game login OR admin → dashboard → exit).
-  const goHome = () => {
-    startMusic();
-    setScreen('home');
-  };
+  // Enter the start page. The screen→music effect picks up the menu theme.
+  const goHome = () => setScreen('home');
 
   const handleSelectMode = (mode) => {
     if (mode === 'quick') {

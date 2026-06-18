@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { roundById, DEFAULT_SCORING } from '../data/rounds';
-import { playSound, stopSound, stopGameSounds } from '../lib/sound';
+import { playSound, stopGameSounds, setSuspense } from '../lib/sound';
 import './screens.css';
 
 const GOLD = '#FAB700';
@@ -10,7 +10,7 @@ const WHITE = '#FFFFFF';
 
 // After a team locks an answer the question doesn't resolve immediately — the
 // timer drops to this short, dramatic window (the locked button glows yellow and
-// the suspense sound loops) before the answer is finally revealed.
+// the bed drops to a tense hush) before the answer is finally revealed.
 const SUSPENSE_SECONDS = 4;
 
 // Pure helpers (module scope so render purity rules aren't tripped by Math.random)
@@ -156,7 +156,7 @@ export default function GameplayScreen({
   useEffect(() => {
     onTimeoutRef.current = () => {
       if (revealed) return;
-      stopSound('suspense');
+      setSuspense(false);
       setRevealed(true);
       setRunning(false);
       if (selectedOption != null && selectedOption >= 0) {
@@ -199,8 +199,9 @@ export default function GameplayScreen({
     }
   }, [secondsLeft, running, revealed, noQuestions]);
 
-  // Background music keeps playing from the game login; just clean up the
-  // gameplay cues (suspense etc.) when leaving — leave the music running.
+  // The gameplay "Main Theme" bed is started by App's screen→music effect; here
+  // we just clean up the gameplay cues (suspense/reveal) when leaving. The bg is
+  // swapped to the next screen's track by that same effect.
   useEffect(() => () => stopGameSounds(), []);
 
   // A team locks an answer. Colours stay as-is; the timer drops to a short
@@ -211,8 +212,7 @@ export default function GameplayScreen({
     setSelectedOption(idx);
     setSecondsLeft(SUSPENSE_SECONDS);
     setRunning(true);
-    playSound('lock');
-    playSound('suspense');
+    setSuspense(true); // drop the bed to a tense hush until the reveal
   };
 
   // Buzzer round: teacher clicks the team that buzzed first → it locks in and
@@ -225,7 +225,7 @@ export default function GameplayScreen({
   };
 
   const handleNext = () => {
-    stopSound('suspense'); // stop the suspense loop but keep background music going
+    setSuspense(false); // release the suspense hush; the bed plays on
     if (isLast) {
       onFinish(teams);
       return;
