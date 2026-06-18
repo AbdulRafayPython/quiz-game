@@ -111,6 +111,10 @@ You need:
    email** → ideally connect their **GitHub**.
 2. **Add New… → Project** → **Import** the quiz repo from GitHub.
 3. Configure the project:
+   - **Project Name:** set to `thequizmasterchallenge`. The free URL is derived
+     from this, so the site becomes **`https://thequizmasterchallenge.vercel.app`**
+     (lowercase, no spaces; the name must be globally free on Vercel — this one was
+     available at setup).
    - **Root Directory:** set to `quiz-app` (the app lives in this subfolder — this
      is the most common mistake, don't leave it at the repo root).
    - **Framework Preset:** Vite (auto-detected). Build command `npm run build`,
@@ -122,8 +126,8 @@ You need:
    | `VITE_SUPABASE_URL` | `https://YOUR-PROJECT.supabase.co` |
    | `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` |
 
-5. Click **Deploy**. Wait for the build to finish — you'll get a live URL like
-   `https://quiz-master.vercel.app`.
+5. Click **Deploy**. Wait for the build to finish — the live URL will be
+   **`https://thequizmasterchallenge.vercel.app`**.
 
 > If you ever change env vars later, you must **redeploy** for them to take effect
 > (Deployments → ⋯ → Redeploy).
@@ -160,6 +164,11 @@ Give the client (securely — use a password manager share, not plain email/chat
 
 ## Optional / good to know
 
+- **Changing the `.vercel.app` name later:** Project → **Settings → Domains** →
+  **Add** the desired `name.vercel.app` (must be globally free), then set it as the
+  production domain. Or rename the project in **Settings → General → Project Name**
+  to update the auto-assigned URL. The canonical name for this app is
+  `thequizmasterchallenge.vercel.app`.
 - **Custom domain:** in Vercel → Project → Settings → Domains, add the client's
   domain (e.g. `quiz.theircompany.com`) and follow the DNS instructions.
 - **Adding media to questions:** done from the Admin panel; files are stored in the
