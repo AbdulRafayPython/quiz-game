@@ -6,6 +6,7 @@ import { createQuiz, updateQuiz, getQuiz, listQuestions, saveQuestion as apiSave
 import { imageToWebp, videoPoster } from '../lib/media';
 import { ROUND_TYPES, roundById, DEFAULT_SCORING } from '../data/rounds';
 import { playSound } from '../lib/sound';
+import { toScript } from '../lib/textscript';
 import './screens.css';
 
 // DB question row -> local form/table shape
@@ -89,6 +90,37 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
 
   const imageRef = useRef(null);
   const videoRef = useRef(null);
+
+  // Sub/superscript toolbar: it acts on whichever text field is focused. We track
+  // that field's DOM node (for its current selection) and its value setter.
+  const activeFieldRef = useRef(null);
+  const activeSetRef = useRef(null);
+  const applyScript = (kind) => {
+    const el = activeFieldRef.current;
+    const set = activeSetRef.current;
+    if (!el || !set) return;
+    const start = el.selectionStart, end = el.selectionEnd;
+    if (start == null || start === end) return; // nothing selected → no-op
+    const v = el.value;
+    const converted = toScript(v.slice(start, end), kind);
+    set(v.slice(0, start) + converted + v.slice(end));
+    // Restore the same selection after the re-render (glyphs map 1 char → 1 char).
+    requestAnimationFrame(() => {
+      try { el.focus(); el.setSelectionRange(start, start + converted.length); } catch { /* ignore */ }
+    });
+  };
+
+  // Inline "how to" popover for the sub/superscript toolbar.
+  const [helpOpen, setHelpOpen] = useState(false);
+  const fmtRef = useRef(null);
+  useEffect(() => {
+    if (!helpOpen) return;
+    const onDown = (e) => { if (fmtRef.current && !fmtRef.current.contains(e.target)) setHelpOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setHelpOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [helpOpen]);
 
   // Edit mode: load the full quiz (name + scoring/timer) and its questions so the
   // form opens fully pre-filled. The list row only carries summary fields, so we
@@ -245,10 +277,38 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
           {/* LEFT: question & answers */}
           <div className="cq-col-left">
             <div className="cq-section">Question &amp; Answers</div>
+            <div className="cq-fmtbar" ref={fmtRef}>
+              <span className="cq-fmt-label">Subscript / Superscript</span>
+              <button type="button" className="cq-fmt-btn" aria-label="Superscript"
+                title="Superscript — e.g. x²" onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyScript('super')}>x²</button>
+              <button type="button" className="cq-fmt-btn" aria-label="Subscript"
+                title="Subscript — e.g. H₂O" onMouseDown={(e) => e.preventDefault()}
+                onClick={() => applyScript('sub')}>x₂</button>
+              <button type="button" className="cq-fmt-help" aria-label="How to use formatting"
+                aria-expanded={helpOpen} onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setHelpOpen((o) => !o)}>?</button>
+              {helpOpen && (
+                <div className="cq-fmt-pop" role="dialog" aria-label="How to add subscript or superscript">
+                  <div className="cq-fmt-pop-title">Add a formula like H₂O or x²</div>
+                  <ol className="cq-fmt-steps">
+                    <li>Type the text normally — e.g. <b>H2O</b></li>
+                    <li>Select the part to format — e.g. the <b>2</b></li>
+                    <li>Click <b>x₂</b> for subscript (or <b>x²</b> for superscript)</li>
+                  </ol>
+                  <div className="cq-fmt-pop-tip">
+                    Works in the question and all four option boxes. Select again and
+                    click the same button to undo.
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="cq-field">
               <label className="cq-label">Question</label>
               <textarea className="cq-textarea" placeholder="Enter the question..."
-                value={form.question} onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))} />
+                value={form.question}
+                onFocus={(e) => { activeFieldRef.current = e.target; activeSetRef.current = (val) => setForm((f) => ({ ...f, question: val })); }}
+                onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))} />
             </div>
             <div className="cq-field">
               <label className="cq-label">Round Type</label>
@@ -264,7 +324,9 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
               <div className="cq-opt-row" key={letter}>
                 <span className="cq-opt-label">Option {letter}</span>
                 <input className="cq-input" placeholder={`Option ${letter}`}
-                  value={form.options[i]} onChange={(e) => setOption(i, e.target.value)} />
+                  value={form.options[i]}
+                  onFocus={(e) => { activeFieldRef.current = e.target; activeSetRef.current = (val) => setOption(i, val); }}
+                  onChange={(e) => setOption(i, e.target.value)} />
                 <label className={`cq-correct${form.correct === i ? ' on' : ''}`}>
                   <input type="radio" name="correct" checked={form.correct === i}
                     onChange={() => setForm((f) => ({ ...f, correct: i }))} style={{ display: 'none' }} />
