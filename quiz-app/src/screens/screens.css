@@ -1,5 +1,4 @@
 /* Shared interactive styles for the exact-mapped screens. */
-
 /* Clickable hotspots / image buttons */
 .hot {
   transition: filter 0.15s ease, transform 0.12s ease;
@@ -289,14 +288,25 @@
   font-family: 'Space Mono', monospace;
   background-color: #12022e;
   background: radial-gradient(120% 80% at 50% 0%, rgba(58, 12, 98, 0.55) 0%, rgba(20, 4, 46, 0.85) 55%, rgba(10, 2, 28, 0.92) 100%), #130330;
-  overflow: hidden;
+  /* Scroll the whole form inside the panel so fonts/options can be larger and
+     more readable without the layout getting cramped or clipped. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
 }
+.cq-form::-webkit-scrollbar { width: 12px; }
+.cq-form::-webkit-scrollbar-track { background: rgba(20, 6, 40, 0.5); border-radius: 6px; }
+.cq-form::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.55); border-radius: 6px;
+  border: 2px solid rgba(20, 6, 40, 0.5);
+}
+.cq-form::-webkit-scrollbar-thumb:hover { background: rgba(217, 70, 239, 0.7); }
 .cq-top { display: flex; gap: 26px; }
 .cq-col-left { flex: 1.65 1 0; min-width: 0; }
 .cq-col-right { flex: 1 1 0; min-width: 0; }
 
-.cq-section { color: #5fd6e6; font-size: 16px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 8px rgba(95, 214, 230, 0.4); margin: 2px 0 10px; }
-.cq-label { color: #f5c542; font-size: 14px; font-weight: 700; margin: 0 0 6px; display: block; }
+.cq-section { color: #5fd6e6; font-size: 19px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 8px rgba(95, 214, 230, 0.4); margin: 2px 0 12px; }
+.cq-label { color: #f5c542; font-size: 16px; font-weight: 700; margin: 0 0 7px; display: block; }
 
 /* Sub/superscript toolbar (acts on the focused question/option field) */
 .cq-fmtbar { position: relative; display: flex; align-items: center; gap: 7px; margin: 0 0 12px; }
@@ -338,15 +348,15 @@
   border-radius: 8px;
   color: #ede3f7;
   font-family: 'Space Mono', monospace;
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
-  padding: 10px 14px;
+  padding: 12px 16px;
   outline: none;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .cq-input::placeholder, .cq-textarea::placeholder { color: rgba(220, 198, 236, 0.4); font-weight: 400; }
 .cq-input:focus, .cq-textarea:focus, .cq-select:focus { border-color: #d946ef; box-shadow: 0 0 8px rgba(217, 70, 239, 0.45); }
-.cq-textarea { resize: none; height: 70px; line-height: 1.4; }
+.cq-textarea { resize: none; height: 84px; line-height: 1.45; }
 .cq-select { appearance: none; -webkit-appearance: none; cursor: pointer; background-image: none; padding-right: 34px; }
 .cq-select-wrap { position: relative; }
 .cq-select-wrap .cq-caret { position: absolute; right: 13px; top: 50%; transform: translateY(-50%); color: #c39ee8; font-size: 12px; pointer-events: none; }
@@ -355,23 +365,23 @@
 .cq-field-row { display: flex; gap: 12px; }
 .cq-field-row .cq-subfield { flex: 1 1 0; min-width: 0; }
 
-.cq-opt-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.cq-opt-label { color: #f5c542; font-size: 14px; font-weight: 700; width: 78px; flex: 0 0 78px; }
+.cq-opt-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.cq-opt-label { color: #f5c542; font-size: 16px; font-weight: 700; width: 92px; flex: 0 0 92px; }
 .cq-opt-row .cq-input { flex: 1 1 auto; }
 .cq-correct {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   color: #d9c6ec;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   user-select: none;
 }
 .cq-check {
-  width: 22px; height: 22px;
-  border-radius: 6px;
+  width: 26px; height: 26px;
+  border-radius: 7px;
   border: 1.5px solid rgba(168, 85, 247, 0.7);
   display: inline-flex; align-items: center; justify-content: center;
   background: rgba(30, 8, 58, 0.85);
@@ -392,19 +402,20 @@
 }
 .cq-upload:hover { border-color: #d946ef; background: rgba(60, 14, 100, 0.5); }
 .cq-upload-icon { width: 30px; height: 30px; color: #5fd6e6; flex: 0 0 30px; }
-.cq-upload-main { color: #ede3f7; font-size: 14px; font-weight: 700; }
-.cq-upload-hint { color: rgba(220, 198, 236, 0.55); font-size: 11px; font-weight: 400; }
+.cq-upload-main { color: #ede3f7; font-size: 16px; font-weight: 700; }
+.cq-upload-hint { color: rgba(220, 198, 236, 0.55); font-size: 12.5px; font-weight: 400; }
 
 /* Added-questions table */
-.cq-bottom { margin-top: 12px; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+/* Natural height so the whole .cq-form scrolls as one column (instead of the
+   table collapsing under flex pressure when the fields above grow). */
+.cq-bottom { margin-top: 14px; display: flex; flex-direction: column; flex: 0 0 auto; }
 .cq-table {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   display: flex; flex-direction: column;
   border: 1.5px solid rgba(168, 85, 247, 0.4);
   border-radius: 12px;
   background: rgba(18, 4, 42, 0.6);
   overflow: hidden;
-  min-height: 0;
 }
 .cq-thead, .cq-trow {
   display: grid;
@@ -412,16 +423,16 @@
   align-items: center;
   gap: 10px;
   padding: 0 18px;
-  height: 42px;
+  height: 48px;
 }
-.cq-thead { flex: 0 0 42px; border-bottom: 1px solid rgba(168, 85, 247, 0.35); }
-.cq-trows { flex: 1 1 auto; overflow-y: auto; }
+.cq-thead { flex: 0 0 48px; border-bottom: 1px solid rgba(168, 85, 247, 0.35); }
+.cq-trows { flex: 0 0 auto; max-height: 240px; overflow-y: auto; }
 .cq-trows::-webkit-scrollbar { width: 8px; }
 .cq-trows::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.5); border-radius: 4px; }
 .cq-trow { border-bottom: 1px solid rgba(168, 85, 247, 0.14); transition: background-color 0.12s ease; }
 .cq-trow:hover { background: rgba(168, 85, 247, 0.1); }
-.cq-th { color: #5fd6e6; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
-.cq-td { color: #ede3f7; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cq-th { color: #5fd6e6; font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
+.cq-td { color: #ede3f7; font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cq-c-center { text-align: center; justify-self: center; }
 .cq-c-actions { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .cq-empty { color: #c39ee8; text-align: center; padding: 24px 0; }
@@ -471,9 +482,119 @@
   pointer-events: none;
 }
 
+/* Gameplay round announcement — prominent heading across the top of the stage.
+   Centred pill with a neon frame; the buzzer round drives the colour/animation. */
+.gp-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  padding: 12px 44px;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: 0.5px;
+  color: #ffd24a;
+  border-radius: 16px;
+  border: 2px solid rgba(250, 183, 0, 0.55);
+  background: linear-gradient(180deg, rgba(40, 10, 70, 0.82) 0%, rgba(18, 4, 42, 0.88) 100%);
+  box-shadow: 0 0 18px rgba(250, 183, 0, 0.25), inset 0 0 16px rgba(168, 85, 247, 0.18);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  /* If the text is too long for one line, wrap to the next line instead of
+     overflowing or clipping at the border. */
+  white-space: normal;
+  overflow: visible;
+}
+/* Buzzer round, nobody locked in yet — pull the eye with a gold pulse. */
+.gp-banner.is-awaiting {
+  border-color: rgba(255, 210, 0, 0.95);
+  animation: gpBannerPulse 0.85s ease-in-out infinite alternate;
+}
+@keyframes gpBannerPulse {
+  from { box-shadow: 0 0 14px rgba(250, 183, 0, 0.35), inset 0 0 16px rgba(168, 85, 247, 0.18); transform: scale(1); }
+  to   { box-shadow: 0 0 30px rgba(250, 183, 0, 0.85), inset 0 0 18px rgba(250, 183, 0, 0.3); transform: scale(1.015); }
+}
+/* A team has buzzed in — flip to green to match the locked team bar. */
+.gp-banner.is-locked {
+  color: #8dffb0;
+  border-color: rgba(60, 255, 120, 0.8);
+  box-shadow: 0 0 22px rgba(60, 255, 120, 0.45), inset 0 0 16px rgba(60, 255, 120, 0.15);
+}
+
 /* Active prize-ladder row */
 .ladder-row-active {
   filter: brightness(1.45) drop-shadow(0 0 10px rgba(250, 183, 0, 0.8));
+}
+
+/* ── Round-starting intro ──────────────────────────────────────────────────
+   Full-stage game-style countdown shown when gameplay begins:
+   GET READY → 3 → 2 → 1 → GO!  Each step remounts (React key) so its
+   animation replays; step durations match these animation lengths. */
+.gp-intro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 45%,
+    rgba(58, 12, 98, 0.82) 0%, rgba(12, 3, 32, 0.95) 58%, rgba(4, 1, 14, 0.98) 100%);
+  animation: gpIntroFade 0.28s ease both;
+}
+.gp-intro-glow {
+  position: absolute;
+  left: 50%; top: 45%;
+  width: 520px; height: 520px;
+  margin: -260px 0 0 -260px;
+  border-radius: 50%;
+  border: 3px solid rgba(250, 183, 0, 0.55);
+  box-shadow: 0 0 50px rgba(250, 183, 0, 0.5), inset 0 0 50px rgba(168, 85, 247, 0.3);
+  pointer-events: none;
+  animation: gpIntroRing 0.6s ease-out infinite;
+}
+.gp-intro-text {
+  position: relative;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  color: #FAB700;
+  text-shadow:
+    0 0 18px rgba(250, 183, 0, 0.85),
+    0 0 48px rgba(250, 183, 0, 0.55),
+    0 4px 0 rgba(120, 60, 0, 0.5);
+}
+.gp-intro-ready { font-size: 92px;  letter-spacing: 8px; animation: gpIntroReady 0.85s ease both; }
+.gp-intro-count { font-size: 300px;                       animation: gpIntroCount 0.6s ease-out both; }
+.gp-intro-go    { font-size: 240px; letter-spacing: 10px; color: #8dffb0;
+  text-shadow: 0 0 20px rgba(60, 255, 120, 0.85), 0 0 60px rgba(60, 255, 120, 0.55), 0 4px 0 rgba(0, 80, 30, 0.5);
+  animation: gpIntroGo 0.7s ease-out both; }
+
+@keyframes gpIntroFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gpIntroReady {
+  0%   { transform: translateY(26px) scale(0.8); opacity: 0; }
+  28%  { transform: translateY(0) scale(1);      opacity: 1; }
+  82%  { opacity: 1; }
+  100% { transform: scale(1.04);                 opacity: 0; }
+}
+@keyframes gpIntroCount {
+  0%   { transform: scale(2.3); opacity: 0; filter: blur(10px); }
+  34%  { transform: scale(1);   opacity: 1; filter: blur(0); }
+  78%  { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(0.66); opacity: 0; }
+}
+@keyframes gpIntroGo {
+  0%   { transform: scale(0.3);  opacity: 0; }
+  24%  { transform: scale(1.18); opacity: 1; }
+  44%  { transform: scale(1); }
+  78%  { transform: scale(1);    opacity: 1; }
+  100% { transform: scale(1.7);  opacity: 0; }
+}
+@keyframes gpIntroRing {
+  0%   { transform: scale(0.55); opacity: 0; }
+  40%  { opacity: 0.6; }
+  100% { transform: scale(1.85); opacity: 0; }
 }
 
 @keyframes fadeIn {
@@ -482,4 +603,175 @@
 }
 .screen-fade {
   animation: fadeIn 0.35s ease both;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FormulaInput styles  ·  merge into screens.css (or import separately)
+   These sit alongside the existing .cq-* rules without touching them.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Wrapper — flex column, gap matches existing field rhythm */
+.fi-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+/* Toolbar row */
+.fi-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Toggle button — ∑ Formula / Plain text */
+.fi-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255 255 255 / 0.18);
+  background: rgba(255 255 255 / 0.06);
+  color: rgba(255 255 255 / 0.65);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.fi-toggle:hover {
+  background: rgba(255 255 255 / 0.12);
+  color: #fff;
+  border-color: rgba(255 255 255 / 0.3);
+}
+.fi-toggle--active {
+  background: rgba(139 115 255 / 0.22);
+  border-color: rgba(139 115 255 / 0.55);
+  color: #c4b8ff;
+}
+.fi-toggle--active:hover {
+  background: rgba(139 115 255 / 0.32);
+}
+.fi-toggle-icon {
+  font-size: 15px;
+  line-height: 1;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+/* "Insert ▾" dropdown trigger */
+.fi-snip-row {
+  position: relative;
+}
+.fi-snip-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255 255 255 / 0.18);
+  background: rgba(255 255 255 / 0.06);
+  color: rgba(255 255 255 / 0.65);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.fi-snip-open:hover { background: rgba(255 255 255 / 0.12); color: #fff; }
+
+/* Snippet panel */
+.fi-snip-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  width: 260px;
+  background: #1a1b35;
+  border: 1px solid rgba(255 255 255 / 0.14);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 8px 28px rgba(0 0 0 / 0.55);
+}
+.fi-snip-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: left;
+}
+.fi-snip-item:hover { background: rgba(255 255 255 / 0.08); }
+.fi-snip-label {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  color: #c4b8ff;
+  min-width: 72px;
+}
+.fi-snip-hint {
+  font-size: 11px;
+  color: rgba(255 255 255 / 0.45);
+}
+
+/* KaTeX ref link */
+.fi-ref-link {
+  font-size: 11px;
+  color: rgba(255 255 255 / 0.4);
+  text-decoration: none;
+  margin-left: auto;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.fi-ref-link:hover { color: rgba(255 255 255 / 0.75); }
+
+/* Input in LaTeX mode — monospace so the teacher can read the syntax */
+.cq-input--latex {
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 13px !important;
+  letter-spacing: 0.01em;
+  color: #c4b8ff !important;
+}
+
+/* Live preview box */
+.fi-preview {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255 255 255 / 0.05);
+  border: 1px solid rgba(255 255 255 / 0.1);
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+  color: #fff;
+  overflow-x: auto;
+}
+.fi-preview--error {
+  border-color: rgba(220 80 80 / 0.45);
+  background: rgba(220 80 80 / 0.08);
+}
+.fi-preview-err {
+  font-size: 12px;
+  color: #f08080;
+}
+
+/* Make KaTeX rendering respect the dark panel background */
+.fi-preview .katex {
+  color: #fff;
+  font-size: 1.1em;
+}
+.fi-preview .katex-html { white-space: nowrap; }
+
+/* Preview in the questions table (read-only display in gameplay/table rows) */
+.formula-display .katex {
+  color: inherit;
+  font-size: 1em;
 }

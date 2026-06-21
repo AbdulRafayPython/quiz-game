@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
+import FitText from '../components/FitText';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { saveGameResult } from '../lib/api';
 import { playSound } from '../lib/sound';
@@ -11,10 +12,11 @@ const LIGHT = '#F3E1F5';
 
 // Frame 8 (52:7) — Results / Win
 // Bottom ranking brackets (1152×71 group @192,884), three 372×71 slots.
+const BRACKET_W = 372;
 const SLOTS = [
-  { bx: 192, nameX: 282, scoreX: 477 },
-  { bx: 582, nameX: 669, scoreX: 805 },
-  { bx: 972, nameX: 1059, scoreX: 1195 },
+  { bx: 192, nameX: 282 },
+  { bx: 582, nameX: 669 },
+  { bx: 972, nameX: 1059 },
 ];
 
 export default function ResultsScreen({ teamResults = [], quizName = null, onRestart }) {
@@ -58,25 +60,29 @@ export default function ResultsScreen({ teamResults = [], quizName = null, onRes
         style={{ pointerEvents: 'none' }}>
         Win the Quiz!
       </Box>
-      {/* Final score (48px gold @ 445,743) */}
+      {/* Final score (48px gold @ 445,743) — auto-shrinks so a big score fits */}
       <Box x={445} y={743} w={647} h={71} size={48} color={GOLD} upper align="center" valign="center"
-        style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        {`Final Score: ${winner.score} PTS`}
+        style={{ pointerEvents: 'none' }}>
+        <FitText maxWidth={627} value={`Final Score: ${winner.score.toLocaleString()} PTS`} />
       </Box>
 
-      {/* Bottom ranking brackets */}
+      {/* Bottom ranking brackets — the bracket ends in a right-pointing chevron,
+          so the score must stay inside the flat fill area (~85% across), not the
+          box edge. Right-aligned + FitText so big/negative numbers grow inward. */}
       {others.map((team, i) => {
         const s = SLOTS[i];
+        const scoreW = 124;
+        const scoreX = s.bx + 188; // right edge lands ~offset 312, clear of the chevron
         return (
           <div key={i}>
-            <Box img={A('team-bracket.png')} x={s.bx} y={884} w={372} h={71} style={{ pointerEvents: 'none' }} />
-            <Box x={s.nameX} y={884 + 23} w={s.scoreX - s.nameX - 8} h={28} size={14} color={LIGHT} valign="center"
+            <Box img={A('team-bracket.png')} x={s.bx} y={884} w={BRACKET_W} h={71} style={{ pointerEvents: 'none' }} />
+            <Box x={s.nameX} y={884 + 23} w={scoreX - s.nameX - 8} h={28} size={14} color={LIGHT} valign="center"
               style={{ pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {team.name}
             </Box>
-            <Box x={s.scoreX} y={884 + 16} w={150} h={44} size={24} color={LIGHT} valign="center"
+            <Box x={scoreX} y={884 + 16} w={scoreW} h={44} size={24} color={LIGHT} align="right" valign="center"
               style={{ pointerEvents: 'none' }}>
-              {team.score.toLocaleString()}
+              <FitText maxWidth={scoreW} align="right" value={team.score.toLocaleString()} />
             </Box>
           </div>
         );

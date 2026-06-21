@@ -16,6 +16,7 @@ import {
   enterMenuMusic, enterSetupMusic, enterSelectMusic, enterGameplayMusic, enterResultsMusic,
   stopMusic, stopAllSounds, playSound,
 } from './lib/sound';
+import 'katex/dist/katex.min.css';
 import './App.css';
 
 // Dev helper: open ?s=<screen> to jump straight to a screen (with sample data)

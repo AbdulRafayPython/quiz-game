@@ -1,41 +1,61 @@
+// CreateQuizScreen.jsx  — with full formula / LaTeX support
+//
+// Changes vs original:
+//  1. FormulaInput replaces bare <input>/<textarea> for question + all 4 options.
+//     Each field has its own latexMode boolean (tracked in latexModes state).
+//  2. The sub/superscript toolbar is hidden when a field is in LaTeX mode
+//     (LaTeX handles ^{} natively; Unicode glyphs would fight the renderer).
+//  3. The questions table renders stored values through renderForDisplay() so
+//     LaTeX options appear as rendered math, not raw backslash strings.
+//  4. KaTeX CSS must be imported once in your app root or index.html CDN link:
+//        import 'katex/dist/katex.min.css';
+//     or <link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+//  5. formula-input.css must be imported alongside screens.css.
+
 import { useEffect, useRef, useState } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { createQuiz, updateQuiz, getQuiz, listQuestions, saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia } from '../lib/api';
+import {
+  createQuiz, updateQuiz, getQuiz, listQuestions,
+  saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia,
+} from '../lib/api';
 import { imageToWebp, videoPoster } from '../lib/media';
 import { ROUND_TYPES, roundById, DEFAULT_SCORING } from '../data/rounds';
 import { playSound } from '../lib/sound';
 import { toScript } from '../lib/textscript';
+import FormulaInput, { renderForDisplay } from '../components/FormulaInput';
 import './screens.css';
 
-// DB question row -> local form/table shape
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
 const mapRow = (r) => ({
   id: r.id, question: r.text, options: r.options, correct: r.correct,
-  round: r.round ?? 5, image_url: r.image_url ?? null, video_url: r.video_url ?? null,
-  poster_url: r.poster_url ?? null,
+  round: r.round ?? 5, image_url: r.image_url ?? null,
+  video_url: r.video_url ?? null, poster_url: r.poster_url ?? null,
 });
 
-// Frame "Create Quiz" (51:77) — admin add-question screen.
-// The panel art supplies the outer frame + "ADD NEW QUESTION" title; the whole
-// interior form (question, options, settings, uploads, added-questions table and
-// the action buttons) is rendered live so the screen is fully functional.
-//
-// The whole container = baked panel art + live form overlay. Both are derived
-// from one SCALE knob so they grow together and stay centred on the 1536×1024
-// stage. Bump SCALE to enlarge the entire "ADD NEW QUESTION" container
-// (1.0 = original size; keep ≲1.2 so it stays inside the stage).
+// Renders a value for the questions table: plain text or KaTeX HTML.
+function TableCell({ value }) {
+  const { isLatex, html, plain } = renderForDisplay(value);
+  if (!isLatex) return <span>{plain}</span>;
+  return (
+    <span
+      className="formula-display"
+      dangerouslySetInnerHTML={{ __html: html }}
+      style={{ verticalAlign: 'middle' }}
+    />
+  );
+}
+
+// ─── layout constants (unchanged from original) ──────────────────────────────
+
 const SCALE = 1.1;
-const BASE = { w: 1294, h: 842 }; // panel art native size (= original design size)
-const PANEL = {
-  w: Math.round(BASE.w * SCALE),
-  h: Math.round(BASE.h * SCALE),
-};
+const BASE = { w: 1294, h: 842 };
+const PANEL = { w: Math.round(BASE.w * SCALE), h: Math.round(BASE.h * SCALE) };
 PANEL.x = Math.round((1536 - PANEL.w) / 2);
 PANEL.y = Math.round((1024 - PANEL.h) / 2);
-// Form interior offsets/size, measured from the art then scaled with the panel.
-// Interior spans the full inside of the frame (design x127..1405, ~6px border),
-// so the form fills the panel edge-to-edge.
 const CONTENT = {
   x: PANEL.x + Math.round(8 * SCALE),
   y: PANEL.y + Math.round(71 * SCALE),
@@ -51,6 +71,8 @@ const SEED_QUESTIONS = [
   { id: 2, question: 'What is the value of 3 + 7 ?', options: ['10', '11', '12', '9'], correct: 0, round: 2 },
   { id: 3, question: 'Which planet is known as the Red Planet?', options: ['Mars', 'Venus', 'Jupiter', 'Saturn'], correct: 0, round: 5 },
 ];
+
+// ─── icon sub-components (unchanged) ─────────────────────────────────────────
 
 const Check = () => (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
@@ -68,10 +90,18 @@ const TrashIcon = () => (
     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
 );
 
+// ─── form helpers ─────────────────────────────────────────────────────────────
+
 const emptyForm = () => ({ question: '', options: ['', '', '', ''], correct: 0, round: 5 });
+
+// latexModes: { question: bool, opt0: bool, opt1: bool, opt2: bool, opt3: bool }
+const emptyLatexModes = () => ({ question: false, opt0: false, opt1: false, opt2: false, opt3: false });
+
+// ─── main component ───────────────────────────────────────────────────────────
 
 export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const [form, setForm] = useState(emptyForm());
+  const [latexModes, setLatexModes] = useState(emptyLatexModes());
   const [quizName, setQuizName] = useState('');
   const [timer, setTimer] = useState(DEFAULT_SCORING.timer);
   const [timerRoundTimer, setTimerRoundTimer] = useState(DEFAULT_SCORING.timerRoundTimer);
@@ -79,7 +109,9 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const [penaltyPoints, setPenaltyPoints] = useState(DEFAULT_SCORING.penaltyPoints);
   const [imageName, setImageName] = useState('');
   const [videoName, setVideoName] = useState('');
-  const [questions, setQuestions] = useState(isSupabaseConfigured ? [] : (editQuiz ? [] : SEED_QUESTIONS));
+  const [questions, setQuestions] = useState(
+    isSupabaseConfigured ? [] : (editQuiz ? [] : SEED_QUESTIONS)
+  );
   const [editingId, setEditingId] = useState(null);
   const [page, setPage] = useState(1);
   const [quizId, setQuizId] = useState(editQuiz?.id ?? null);
@@ -91,8 +123,8 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const imageRef = useRef(null);
   const videoRef = useRef(null);
 
-  // Sub/superscript toolbar: it acts on whichever text field is focused. We track
-  // that field's DOM node (for its current selection) and its value setter.
+  // Sub/superscript toolbar: tracks whichever plain-text field is focused.
+  // When a field is in LaTeX mode we skip this entirely (LaTeX uses ^{} and _{}).
   const activeFieldRef = useRef(null);
   const activeSetRef = useRef(null);
   const applyScript = (kind) => {
@@ -100,17 +132,15 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     const set = activeSetRef.current;
     if (!el || !set) return;
     const start = el.selectionStart, end = el.selectionEnd;
-    if (start == null || start === end) return; // nothing selected → no-op
+    if (start == null || start === end) return;
     const v = el.value;
     const converted = toScript(v.slice(start, end), kind);
     set(v.slice(0, start) + converted + v.slice(end));
-    // Restore the same selection after the re-render (glyphs map 1 char → 1 char).
     requestAnimationFrame(() => {
       try { el.focus(); el.setSelectionRange(start, start + converted.length); } catch { /* ignore */ }
     });
   };
 
-  // Inline "how to" popover for the sub/superscript toolbar.
   const [helpOpen, setHelpOpen] = useState(false);
   const fmtRef = useRef(null);
   useEffect(() => {
@@ -122,22 +152,20 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [helpOpen]);
 
-  // Edit mode: load the full quiz (name + scoring/timer) and its questions so the
-  // form opens fully pre-filled. The list row only carries summary fields, so we
-  // fetch the authoritative row + questions from the backend.
+  // Any field in latex mode? → hide the Unicode sub/superscript toolbar entirely
+  // (it would produce garbled output when KaTeX is rendering)
+  const anyLatexActive = Object.values(latexModes).some(Boolean);
+
+  // ─── edit mode: load quiz + questions ──────────────────────────────────────
+
   useEffect(() => {
     if (!editQuiz) return;
-    // Always prefill the name from what we already have for instant feedback.
     setQuizName(editQuiz.name ?? '');
     if (!isSupabaseConfigured) return;
-
     let active = true;
     (async () => {
       try {
-        const [quiz, qs] = await Promise.all([
-          getQuiz(editQuiz.id),
-          listQuestions(editQuiz.id),
-        ]);
+        const [quiz, qs] = await Promise.all([getQuiz(editQuiz.id), listQuestions(editQuiz.id)]);
         if (!active) return;
         if (quiz) {
           setQuizName(quiz.name ?? '');
@@ -157,18 +185,26 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     return () => { active = false; };
   }, [editQuiz]);
 
-  const setOption = (i, v) => setForm((f) => ({ ...f, options: f.options.map((o, idx) => (idx === i ? v : o)) }));
+  // ─── form helpers ──────────────────────────────────────────────────────────
+
+  const setOption = (i, v) =>
+    setForm((f) => ({ ...f, options: f.options.map((o, idx) => (idx === i ? v : o)) }));
 
   const clearForm = () => {
     setForm(emptyForm());
+    setLatexModes(emptyLatexModes());
     setEditingId(null);
   };
+
+  const setLatexMode = (field, val) =>
+    setLatexModes((m) => ({ ...m, [field]: val }));
+
+  // ─── save / edit / delete ─────────────────────────────────────────────────
 
   const saveQuestion = async () => {
     playSound('click');
     if (!form.question.trim() || form.options.some((o) => !o.trim())) return;
 
-    // Local-only behaviour when no backend is configured.
     if (!isSupabaseConfigured) {
       if (editingId != null) {
         setQuestions((qs) => qs.map((q) => (q.id === editingId ? { ...q, ...form } : q)));
@@ -182,8 +218,6 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
 
     setSaving(true);
     try {
-      // Lazily create the quiz row on the first saved question; when the quiz
-      // already exists (editing, or a later save), keep its settings in sync.
       const quizSettings = {
         name: quizName.trim() || 'Untitled Quiz',
         rounds: ROUND_TYPES.length,
@@ -200,12 +234,8 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
       } else {
         await updateQuiz(qid, quizSettings);
       }
-      // Optimize before upload: transcode the image to lightweight WebP, and grab
-      // a WebP poster frame from the video so it appears instantly in gameplay.
-      // The heavy originals never leave the device (image) / load lazily (video).
       const image_url = imageFile ? await uploadMedia(await imageToWebp(imageFile)) : null;
-      let video_url = null;
-      let poster_url = null;
+      let video_url = null, poster_url = null;
       if (videoFile) {
         const poster = await videoPoster(videoFile);
         [video_url, poster_url] = await Promise.all([
@@ -218,9 +248,11 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
         question: form.question, options: form.options, correct: form.correct,
         round: form.round, image_url, video_url, poster_url, position: questions.length,
       });
-      setQuestions((qs) => (qs.some((q) => q.id === saved.id)
-        ? qs.map((q) => (q.id === saved.id ? mapRow(saved) : q))
-        : [...qs, mapRow(saved)]));
+      setQuestions((qs) =>
+        qs.some((q) => q.id === saved.id)
+          ? qs.map((q) => (q.id === saved.id ? mapRow(saved) : q))
+          : [...qs, mapRow(saved)]
+      );
       setImageFile(null); setVideoFile(null); setImageName(''); setVideoName('');
       clearForm();
     } catch (e) {
@@ -234,8 +266,10 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const editQuestion = (q) => {
     playSound('click');
     setForm({ question: q.question, options: [...q.options], correct: q.correct, round: q.round ?? 5 });
+    setLatexModes(emptyLatexModes()); // reset — teacher decides per field
     setEditingId(q.id);
   };
+
   const deleteQuestion = (id) => {
     playSound('click');
     setQuestions((qs) => qs.filter((q) => q.id !== id));
@@ -245,23 +279,25 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     }
   };
 
+  // ─── pagination ───────────────────────────────────────────────────────────
+
   const pageCount = Math.max(1, Math.ceil(questions.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const start = (safePage - 1) * PAGE_SIZE;
   const rows = questions.slice(start, start + PAGE_SIZE);
   const goto = (p) => { playSound('click'); setPage(Math.min(Math.max(1, p), pageCount)); };
 
+  // ─── render ───────────────────────────────────────────────────────────────
+
   return (
     <Stage className="screen-fade">
       <Box img={A('stage-bg.png')} x={0} y={0} w={1536} h={1024} style={{ filter: 'blur(20px)' }} />
-
-      {/* Panel art: outer frame + title (baked) */}
       <Box img={A('create-quiz-panel.png')} x={PANEL.x} y={PANEL.y} w={PANEL.w} h={PANEL.h} />
 
-      {/* Live form interior */}
-      <div className="cq-form"
-        style={{ position: 'absolute', left: CONTENT.x, top: CONTENT.y, width: CONTENT.w, height: CONTENT.h }}>
-
+      <div
+        className="cq-form"
+        style={{ position: 'absolute', left: CONTENT.x, top: CONTENT.y, width: CONTENT.w, height: CONTENT.h }}
+      >
         {loading && (
           <div className="cq-loading" style={{
             position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
@@ -277,39 +313,59 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
           {/* LEFT: question & answers */}
           <div className="cq-col-left">
             <div className="cq-section">Question &amp; Answers</div>
-            <div className="cq-fmtbar" ref={fmtRef}>
-              <span className="cq-fmt-label">Subscript / Superscript</span>
-              <button type="button" className="cq-fmt-btn" aria-label="Superscript"
-                title="Superscript — e.g. x²" onMouseDown={(e) => e.preventDefault()}
-                onClick={() => applyScript('super')}>x²</button>
-              <button type="button" className="cq-fmt-btn" aria-label="Subscript"
-                title="Subscript — e.g. H₂O" onMouseDown={(e) => e.preventDefault()}
-                onClick={() => applyScript('sub')}>x₂</button>
-              <button type="button" className="cq-fmt-help" aria-label="How to use formatting"
-                aria-expanded={helpOpen} onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setHelpOpen((o) => !o)}>?</button>
-              {helpOpen && (
-                <div className="cq-fmt-pop" role="dialog" aria-label="How to add subscript or superscript">
-                  <div className="cq-fmt-pop-title">Add a formula like H₂O or x²</div>
-                  <ol className="cq-fmt-steps">
-                    <li>Type the text normally — e.g. <b>H2O</b></li>
-                    <li>Select the part to format — e.g. the <b>2</b></li>
-                    <li>Click <b>x₂</b> for subscript (or <b>x²</b> for superscript)</li>
-                  </ol>
-                  <div className="cq-fmt-pop-tip">
-                    Works in the question and all four option boxes. Select again and
-                    click the same button to undo.
+
+            {/* Sub/superscript toolbar — hidden when any field is in LaTeX mode */}
+            {!anyLatexActive && (
+              <div className="cq-fmtbar" ref={fmtRef}>
+                <span className="cq-fmt-label">Subscript / Superscript</span>
+                <button type="button" className="cq-fmt-btn" aria-label="Superscript"
+                  title="Superscript — e.g. x²" onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyScript('super')}>x²</button>
+                <button type="button" className="cq-fmt-btn" aria-label="Subscript"
+                  title="Subscript — e.g. H₂O" onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applyScript('sub')}>x₂</button>
+                <button type="button" className="cq-fmt-help" aria-label="How to use formatting"
+                  aria-expanded={helpOpen} onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setHelpOpen((o) => !o)}>?</button>
+                {helpOpen && (
+                  <div className="cq-fmt-pop" role="dialog" aria-label="How to add subscript or superscript">
+                    <div className="cq-fmt-pop-title">Add a formula like H₂O or x²</div>
+                    <ol className="cq-fmt-steps">
+                      <li>Type the text normally — e.g. <b>H2O</b></li>
+                      <li>Select the part to format — e.g. the <b>2</b></li>
+                      <li>Click <b>x₂</b> for subscript (or <b>x²</b> for superscript)</li>
+                    </ol>
+                    <div className="cq-fmt-pop-tip">
+                      Works in the question and all four option boxes. Select again and
+                      click the same button to undo. For full math expressions, use the
+                      <b>∑ Formula</b> button on any field to switch to LaTeX mode.
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
+
+            {/* Question field */}
             <div className="cq-field">
               <label className="cq-label">Question</label>
-              <textarea className="cq-textarea" placeholder="Enter the question..."
+              <FormulaInput
+                multiline
+                placeholder="Enter the question…"
                 value={form.question}
-                onFocus={(e) => { activeFieldRef.current = e.target; activeSetRef.current = (val) => setForm((f) => ({ ...f, question: val })); }}
-                onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))} />
+                onChange={(val) => setForm((f) => ({ ...f, question: val }))}
+                onFocus={(e) => {
+                  // Only register for Unicode toolbar when NOT in latex mode
+                  if (!latexModes.question) {
+                    activeFieldRef.current = e.target;
+                    activeSetRef.current = (val) => setForm((f) => ({ ...f, question: val }));
+                  }
+                }}
+                latexMode={latexModes.question}
+                onLatexToggle={(val) => setLatexMode('question', val)}
+              />
             </div>
+
+            {/* Round type */}
             <div className="cq-field">
               <label className="cq-label">Round Type</label>
               <div className="cq-select-wrap">
@@ -320,24 +376,38 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
                 <span className="cq-caret">▾</span>
               </div>
             </div>
-            {OPT_LETTERS.map((letter, i) => (
-              <div className="cq-opt-row" key={letter}>
-                <span className="cq-opt-label">Option {letter}</span>
-                <input className="cq-input" placeholder={`Option ${letter}`}
-                  value={form.options[i]}
-                  onFocus={(e) => { activeFieldRef.current = e.target; activeSetRef.current = (val) => setOption(i, val); }}
-                  onChange={(e) => setOption(i, e.target.value)} />
-                <label className={`cq-correct${form.correct === i ? ' on' : ''}`}>
-                  <input type="radio" name="correct" checked={form.correct === i}
-                    onChange={() => setForm((f) => ({ ...f, correct: i }))} style={{ display: 'none' }} />
-                  <span className="cq-check"><Check /></span>
-                  Correct
-                </label>
-              </div>
-            ))}
+
+            {/* Option fields */}
+            {OPT_LETTERS.map((letter, i) => {
+              const modeKey = `opt${i}`;
+              return (
+                <div className="cq-opt-row" key={letter}>
+                  <span className="cq-opt-label">Option {letter}</span>
+                  <FormulaInput
+                    placeholder={`Option ${letter}`}
+                    value={form.options[i]}
+                    onChange={(val) => setOption(i, val)}
+                    onFocus={(e) => {
+                      if (!latexModes[modeKey]) {
+                        activeFieldRef.current = e.target;
+                        activeSetRef.current = (val) => setOption(i, val);
+                      }
+                    }}
+                    latexMode={latexModes[modeKey]}
+                    onLatexToggle={(val) => setLatexMode(modeKey, val)}
+                  />
+                  <label className={`cq-correct${form.correct === i ? ' on' : ''}`}>
+                    <input type="radio" name="correct" checked={form.correct === i}
+                      onChange={() => setForm((f) => ({ ...f, correct: i }))} style={{ display: 'none' }} />
+                    <span className="cq-check"><Check /></span>
+                    Correct
+                  </label>
+                </div>
+              );
+            })}
           </div>
 
-          {/* RIGHT: settings */}
+          {/* RIGHT: settings (unchanged) */}
           <div className="cq-col-right">
             <div className="cq-field">
               <label className="cq-label">Quiz Name</label>
@@ -393,7 +463,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
           </div>
         </div>
 
-        {/* BOTTOM: added questions table */}
+        {/* BOTTOM: questions table */}
         <div className="cq-bottom">
           <div className="cq-section">All Added Questions</div>
           <div className="cq-table">
@@ -408,14 +478,22 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
               {rows.map((q, i) => (
                 <div className="cq-trow" key={q.id}>
                   <div className="cq-td cq-c-center">{start + i + 1}</div>
-                  <div className="cq-td" title={q.question}>{q.question}</div>
+                  {/* Question cell — renders LaTeX if stored value looks like LaTeX */}
+                  <div className="cq-td" title={q.question}>
+                    <TableCell value={q.question} />
+                  </div>
                   <div className="cq-td cq-c-center">{roundById(q.round ?? 5).short}</div>
-                  <div className="cq-td cq-c-center">{OPT_LETTERS[q.correct]}</div>
+                  {/* Correct option cell — also renders LaTeX */}
+                  <div className="cq-td cq-c-center">
+                    <TableCell value={q.options[q.correct]} />
+                  </div>
                   <div className="cq-c-actions">
                     <button className="vq-iconbtn edit" aria-label="Edit question" onClick={() => editQuestion(q)}>
-                      <EditIcon /></button>
+                      <EditIcon />
+                    </button>
                     <button className="vq-iconbtn del" aria-label="Delete question" onClick={() => deleteQuestion(q.id)}>
-                      <TrashIcon /></button>
+                      <TrashIcon />
+                    </button>
                   </div>
                 </div>
               ))}

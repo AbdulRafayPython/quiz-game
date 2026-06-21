@@ -33,53 +33,79 @@ const DEFAULT_VOLUME = 0.22;  // 0..1
 const DUCK_RATIO = 0.27;      // ducked volume = userVolume * this
 const LS_ENABLED = 'qm_music_enabled';
 const LS_VOLUME = 'qm_music_volume';
+const LS_CUE_VOLUMES = 'qm_cue_volumes'; // persisted per-cue volumes (JSON object)
 
 // Background tracks — one active at a time (key -> file + whether it loops). The
 // winner music plays once; every other phase loops until the screen changes.
 const BG = {
-  menu:    { file: 'theme-intro.mp3',  loop: true },
-  setup:   { file: 'round-start.mp3',  loop: true },
-  select:  { file: 'fanfare.wav',      loop: true },
-  game:    { file: 'question-bed.mp3', loop: true },
+  menu:    { file: 'theme-intro.mp3',  loop: true  },
+  setup:   { file: 'round-start.mp3',  loop: true  },
+  select:  { file: 'fanfare.wav',      loop: true  },
+  game:    { file: 'question-bed.mp3', loop: true  },
   results: { file: 'win.wav',          loop: false },
 };
 
 // One-shot cues. duck: 'lower' dips the bg while playing; 'pause' silences it.
 const CUES = {
-  correct: { file: 'correct.wav', volume: 1.0, duck: 'lower' },         // reveal — right
-  wrong: { file: 'wrong.wav', volume: 1.0, duck: 'lower' },             // reveal — wrong / timeout
-  audience: { file: 'audience.mp3', volume: 0.9, duck: 'pause' },       // lifeline — Ask the Audience
-  friend: { file: 'call_a_friend.mp3', volume: 0.9, duck: 'pause' },    // lifeline — Phone a Friend
-  click: { file: 'button_click.mp3', volume: 0.6 },                     // UI button click (no ducking)
+  start:    { file: 'round-start.mp3',     volume: 0.9, duck: 'lower' }, // game-start intro countdown
+  correct:  { file: 'correct.wav',        volume: 1.0, duck: 'lower' }, // reveal — right
+  wrong:    { file: 'wrong.wav',           volume: 1.0, duck: 'lower' }, // reveal — wrong / timeout
+  audience: { file: 'audience.mp3',        volume: 0.9, duck: 'pause' }, // lifeline — Ask the Audience
+  friend:   { file: 'call_a_friend.mp3',   volume: 0.9, duck: 'pause' }, // lifeline — Phone a Friend
+  click:    { file: 'button_click.mp3',    volume: 0.6 },                // UI button click (no ducking)
 };
 
-const bgs = new Map();      // key -> Audio (background track)
-const cues = new Map();      // id -> Audio (one-shot cue)
-const ducking = new Set();   // ids/holds currently lowering the bg ('suspense' + duck cues)
-const pausing = new Set();   // ids currently pausing the bg (lifelines)
-let activeBg = null;         // 'menu' | 'setup' | 'select' | 'game' | 'results' | null
-let unlockBound = false;     // a one-shot listener to satisfy autoplay policy is armed
+const bgs     = new Map(); // key   -> Audio (background track)
+const cues    = new Map(); // id    -> Audio (one-shot cue)
+const ducking = new Set(); // ids / holds currently lowering the bg ('suspense' + duck cues)
+const pausing = new Set(); // ids currently pausing the bg (lifelines)
+let activeBg     = null;   // 'menu' | 'setup' | 'select' | 'game' | 'results' | null
+let unlockBound  = false;  // a one-shot listener to satisfy autoplay policy is armed
 
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const clamp   = (v, a, b) => Math.min(b, Math.max(a, v));
 const readBool = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v === '1'; } catch { return d; } };
-const readNum = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return Number.isFinite(v) ? v : d; } catch { return d; } };
+const readNum  = (k, d) => { try { const v = parseFloat(localStorage.getItem(k)); return Number.isFinite(v) ? v : d; } catch { return d; } };
 
-// User settings (persisted).
+// ---- user settings (master music) -------------------------------------------
 let musicEnabled = readBool(LS_ENABLED, true);
-let musicVolume = clamp(readNum(LS_VOLUME, DEFAULT_VOLUME), 0, 1);
+let musicVolume  = clamp(readNum(LS_VOLUME, DEFAULT_VOLUME), 0, 1);
 
+// ---- per-cue volume state ---------------------------------------------------
+// Seeded from CUES defaults, then overridden by any persisted values.
+function loadCueVolumes() {
+  const defaults = Object.fromEntries(
+    Object.entries(CUES).map(([id, def]) => [id, def.volume ?? 1])
+  );
+  try {
+    const stored = JSON.parse(localStorage.getItem(LS_CUE_VOLUMES) || '{}');
+    for (const [id, v] of Object.entries(stored)) {
+      if (id in defaults && typeof v === 'number' && Number.isFinite(v)) {
+        defaults[id] = clamp(v, 0, 1);
+      }
+    }
+  } catch { /* ignore */ }
+  return defaults;
+}
+
+const cueVolumes = loadCueVolumes();
+
+function saveCueVolumes() {
+  try { localStorage.setItem(LS_CUE_VOLUMES, JSON.stringify(cueVolumes)); } catch { /* ignore */ }
+}
+
+// ---- internal helpers -------------------------------------------------------
 function bgEl(key) {
   const def = BG[key];
   if (!def) return null;
   let a = bgs.get(key);
   if (!a) {
     a = new Audio(BASE + def.file);
-    a.loop = !!def.loop;
+    a.loop    = !!def.loop;
     a.preload = 'auto';
-    // A non-looping bg (the winner music) clears itself when it finishes so a
+    // A non-looping bg (winner music) clears itself when it finishes so a
     // later syncMusic() — e.g. a volume tweak — never restarts it.
     if (!def.loop) a.onended = () => { if (activeBg === key) { activeBg = null; syncMusic(); } };
-    bgs.set(key, a); // bg volume is managed by syncMusic
+    bgs.set(key, a); // volume managed by syncMusic
   }
   return a;
 }
@@ -90,39 +116,39 @@ function cueEl(id) {
   let a = cues.get(id);
   if (!a) {
     a = new Audio(BASE + def.file);
-    a.loop = false;
+    a.loop    = false;
     a.preload = 'auto';
-    a.volume = def.volume ?? 1;
+    a.volume  = cueVolumes[id] ?? (def.volume ?? 1); // use runtime volume, not hardcoded default
     cues.set(id, a);
   }
   return a;
 }
 
-// If the browser blocked play() (autoplay policy), re-try once on the first user
-// interaction so the music starts as soon as it's allowed.
+// If the browser blocked play() (autoplay policy), re-try once on the first
+// user interaction so the music starts as soon as it's allowed.
 function armAutoplayUnlock() {
   if (unlockBound) return;
   unlockBound = true;
   const handler = () => { unlockBound = false; syncMusic(); };
   document.addEventListener('pointerdown', handler, { once: true });
-  document.addEventListener('keydown', handler, { once: true });
+  document.addEventListener('keydown',     handler, { once: true });
 }
 
 // Single source of truth for which bg is audible and at what volume.
 function syncMusic() {
-  const vol = clamp(musicVolume * (ducking.size > 0 ? DUCK_RATIO : 1), 0, 1);
+  const vol     = clamp(musicVolume * (ducking.size > 0 ? DUCK_RATIO : 1), 0, 1);
   const canPlay = musicEnabled && pausing.size === 0;
   for (const [key, a] of bgs) {
     if (key === activeBg && canPlay) {
       a.volume = vol;
-      if (a.paused) a.play().catch(() => armAutoplayUnlock()); // blocked → retry on next gesture
+      if (a.paused) a.play().catch(() => armAutoplayUnlock());
     } else if (!a.paused) {
       a.pause();
     }
   }
 }
 
-// ---- background track ---------------------------------------------------------
+// ---- background track -------------------------------------------------------
 /** Switch the active background ('menu' | 'setup' | 'select' | 'game' |
  *  'results' | null). Idempotent: asking for the bg that's already active just
  *  keeps it going (no restart); switching stops the previous one. */
@@ -133,22 +159,22 @@ function setBg(key) {
   ducking.clear();
   pausing.clear();
   const a = key && bgEl(key);
-  if (a) { try { a.currentTime = 0; } catch { /* ignore */ } } // start each phase from the top
+  if (a) { try { a.currentTime = 0; } catch { /* ignore */ } }
   syncMusic();
 }
 
 /** Title / home / mode-select theme. */
-export const enterMenuMusic = () => setBg('menu');
+export const enterMenuMusic     = () => setBg('menu');
 /** After a mode is chosen, through team setup. */
-export const enterSetupMusic = () => setBg('setup');
+export const enterSetupMusic    = () => setBg('setup');
 /** Quiz-selection screen. */
-export const enterSelectMusic = () => setBg('select');
+export const enterSelectMusic   = () => setBg('select');
 /** Gameplay thinking bed ("Main Theme"). */
 export const enterGameplayMusic = () => setBg('game');
 /** Results: winner music (plays once). */
-export const enterResultsMusic = () => setBg('results');
+export const enterResultsMusic  = () => setBg('results');
 /** Stop the background entirely (login / admin / logout). */
-export const stopMusic = () => setBg(null);
+export const stopMusic          = () => setBg(null);
 
 /** Hold/release a "suspense" duck on the bg (a locked answer awaiting reveal). */
 export function setSuspense(on) {
@@ -156,28 +182,60 @@ export function setSuspense(on) {
   syncMusic();
 }
 
+// ---- master music settings --------------------------------------------------
 /** User setting: turn background music on/off (persisted). */
 export function setMusicEnabled(on) {
   musicEnabled = !!on;
   try { localStorage.setItem(LS_ENABLED, on ? '1' : '0'); } catch { /* ignore */ }
   syncMusic();
 }
+
 /** User setting: background music volume 0..1 (persisted). */
 export function setMusicVolume(v) {
   musicVolume = clamp(Number(v) || 0, 0, 1);
   try { localStorage.setItem(LS_VOLUME, String(musicVolume)); } catch { /* ignore */ }
   syncMusic();
 }
+
 export const isMusicEnabled = () => musicEnabled;
 export const getMusicVolume = () => musicVolume;
 
-// ---- cues --------------------------------------------------------------------
+// ---- per-cue volume API -----------------------------------------------------
+/**
+ * All cue IDs available for individual volume control.
+ * Matches the keys of the CUES object.
+ */
+export const CUE_IDS = Object.keys(CUES);
+
+/**
+ * Get the current runtime volume for a named cue (0..1).
+ * Returns 1 for unknown IDs.
+ */
+export const getCueVolume = (id) => cueVolumes[id] ?? 1;
+
+/**
+ * Set the volume for a named cue (0..1). Applies immediately to any
+ * already-created Audio element for that cue, and persists to localStorage.
+ */
+export function setCueVolume(id, v) {
+  if (!(id in cueVolumes)) return; // ignore unknown IDs
+  const val = clamp(Number(v) || 0, 0, 1);
+  cueVolumes[id] = val;
+  // Apply immediately if the Audio element already exists.
+  const a = cues.get(id);
+  if (a) a.volume = val;
+  saveCueVolumes();
+}
+
+// ---- cues -------------------------------------------------------------------
 /** Play a cue from the start, ducking/pausing the bg as configured. */
 export function playSound(id) {
   const def = CUES[id];
   if (!def) return;
   const a = cueEl(id);
   if (!a) return;
+  // Apply latest runtime volume each time it plays (may have changed since creation).
+  a.volume = cueVolumes[id] ?? (def.volume ?? 1);
   if (def.duck === 'lower') { ducking.add(id); syncMusic(); }
   else if (def.duck === 'pause') { pausing.add(id); syncMusic(); }
   try { a.currentTime = 0; a.play().catch(() => {}); } catch { /* ignore */ }
