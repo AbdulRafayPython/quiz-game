@@ -57,13 +57,14 @@ export async function listQuizzes() {
   return data;
 }
 
-export async function createQuiz({ name, rounds = 1, timer = 25, timerRoundTimer = 10, correctPoints = 1000, penaltyPoints = 500 }) {
+export async function createQuiz({ name, rounds = 1, teamCount = 2, timer = 25, timerRoundTimer = 10, correctPoints = 1000, penaltyPoints = 500 }) {
   ensure();
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from('quizzes')
     .insert({
       name, rounds, timer,
+      team_count: teamCount,
       timer_round_timer: timerRoundTimer,
       correct_points: correctPoints,
       penalty_points: penaltyPoints,
@@ -84,11 +85,12 @@ export async function getQuiz(id) {
 }
 
 // Persist quiz-level settings (name, timer, scoring) when editing an existing quiz.
-export async function updateQuiz(id, { name, rounds, timer, timerRoundTimer, correctPoints, penaltyPoints }) {
+export async function updateQuiz(id, { name, rounds, teamCount, timer, timerRoundTimer, correctPoints, penaltyPoints }) {
   ensure();
   const patch = {};
   if (name != null) patch.name = name;
   if (rounds != null) patch.rounds = rounds;
+  if (teamCount != null) patch.team_count = teamCount;
   if (timer != null) patch.timer = timer;
   if (timerRoundTimer != null) patch.timer_round_timer = timerRoundTimer;
   if (correctPoints != null) patch.correct_points = correctPoints;
@@ -102,6 +104,35 @@ export async function deleteQuiz(id) {
   ensure();
   const { error } = await supabase.from('quizzes').delete().eq('id', id);
   if (error) throw error;
+}
+
+// Create a whole quiz (settings + all its questions) in one go — used by the
+// JSON import on the Create Quiz page and the dashboard's bulk import. Returns
+// { id, questions } where questions are the saved rows (with DB ids).
+export async function importQuiz(quiz) {
+  ensure();
+  const created = await createQuiz({
+    name: quiz.name,
+    rounds: 5,
+    teamCount: quiz.teamCount,
+    timer: quiz.timer,
+    timerRoundTimer: quiz.timerRoundTimer,
+    correctPoints: quiz.correctPoints,
+    penaltyPoints: quiz.penaltyPoints,
+  });
+  const rows = quiz.questions.map((q, i) => ({
+    quiz_id: created.id,
+    text: q.question,
+    options: q.options,
+    correct: q.correct,
+    round: q.round ?? 5,
+    correct_points: q.correctPoints ?? quiz.correctPoints,
+    penalty_points: q.penaltyPoints ?? quiz.penaltyPoints,
+    position: i,
+  }));
+  const { data, error } = await supabase.from('questions').insert(rows).select();
+  if (error) throw error;
+  return { id: created.id, questions: data };
 }
 
 // --------------------------- QUESTIONS -------------------------------------
@@ -124,6 +155,8 @@ export async function saveQuestion(quizId, q) {
     options: q.options,
     correct: q.correct,
     round: q.round ?? 1,
+    correct_points: q.correctPoints ?? 1000,
+    penalty_points: q.penaltyPoints ?? 500,
     image_url: q.image_url ?? null,
     video_url: q.video_url ?? null,
     poster_url: q.poster_url ?? null,

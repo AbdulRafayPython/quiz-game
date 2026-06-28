@@ -21,6 +21,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import katex from 'katex';
+import { renderMixedHtml, hasMath } from '../lib/mathText';
 
 // Quick-insert palette: label → LaTeX snippet
 const SNIPPETS = [
@@ -82,17 +83,24 @@ export default function FormulaInput({
     };
   }, [showCheatSheet]);
 
-  const { html: previewHtml, error: previewError } = latexMode ? renderLatex(value) : { html: '', error: null };
+  // Preview: in LaTeX mode the whole field is one formula (show parse errors);
+  // in plain mode show a live MIXED preview whenever the text contains a $…$
+  // (or \( \), $$ $$) formula, so the teacher sees exactly how it will render.
+  const latexPreview = latexMode ? renderLatex(value) : null;
+  const mixed = !latexMode && hasMath(value) ? renderMixedHtml(value) : null;
+  const showPreview = latexMode ? !!value.trim() : !!mixed;
 
-  // Insert a snippet at caret position
+  // Insert a snippet at the caret. In plain mode it's wrapped in $…$ so it
+  // renders as an inline formula within the surrounding text.
   const insertSnippet = (latex) => {
     const el = inputRef.current;
     if (!el) return;
+    const text = latexMode ? latex : `$${latex}$`;
     const start = el.selectionStart ?? value.length;
     const end = el.selectionEnd ?? value.length;
-    const next = value.slice(0, start) + latex + value.slice(end);
+    const next = value.slice(0, start) + text + value.slice(end);
     onChange(next);
-    const cursor = start + latex.length;
+    const cursor = start + text.length;
     requestAnimationFrame(() => {
       try { el.focus(); el.setSelectionRange(cursor, cursor); } catch { /* ignore */ }
     });
@@ -132,49 +140,49 @@ export default function FormulaInput({
           {latexMode ? 'Plain text' : 'Formula'}
         </button>
 
-        {latexMode && (
-          <div className="fi-snip-row" ref={cheatRef}>
-            <button
-              type="button"
-              className="fi-snip-open"
-              aria-expanded={showCheatSheet}
-              title="Insert a formula snippet"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setShowCheatSheet((v) => !v)}
-            >
-              Insert ▾
-            </button>
-            {showCheatSheet && (
-              <div className="fi-snip-panel" role="listbox" aria-label="Formula snippets">
-                {SNIPPETS.map((s) => (
-                  <button
-                    key={s.latex}
-                    type="button"
-                    className="fi-snip-item"
-                    title={s.hint}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => insertSnippet(s.latex)}
-                  >
-                    <span className="fi-snip-label">{s.label}</span>
-                    <span className="fi-snip-hint">{s.hint}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {latexMode && (
-          <a
-            className="fi-ref-link"
-            href="https://katex.org/docs/support_table"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Full KaTeX symbol reference"
+        {/* Snippet inserter — in plain mode it inserts the snippet wrapped in
+            $…$ so it becomes an inline formula inside the surrounding text. */}
+        <div className="fi-snip-row" ref={cheatRef}>
+          <button
+            type="button"
+            className="fi-snip-open"
+            aria-expanded={showCheatSheet}
+            title="Insert a formula"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setShowCheatSheet((v) => !v)}
           >
-            KaTeX ref ↗
-          </a>
-        )}
+            Insert formula ▾
+          </button>
+          {showCheatSheet && (
+            <div className="fi-snip-panel" role="listbox" aria-label="Formula snippets">
+              {SNIPPETS.map((s) => (
+                <button
+                  key={s.latex}
+                  type="button"
+                  className="fi-snip-item"
+                  title={s.hint}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertSnippet(s.latex)}
+                >
+                  <span className="fi-snip-label">{s.label}</span>
+                  <span className="fi-snip-hint">{s.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!latexMode && <span className="fi-hint">wrap math in <b>$…$</b></span>}
+
+        <a
+          className="fi-ref-link"
+          href="https://katex.org/docs/support_table"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Full KaTeX symbol reference"
+        >
+          KaTeX ref ↗
+        </a>
       </div>
 
       {/* The actual input */}
@@ -183,12 +191,14 @@ export default function FormulaInput({
         : <input {...sharedProps} />
       }
 
-      {/* Live preview */}
-      {latexMode && value.trim() && (
-        <div className={`fi-preview${previewError ? ' fi-preview--error' : ''}`}>
-          {previewError
-            ? <span className="fi-preview-err">⚠ {previewError}</span>
-            : <span dangerouslySetInnerHTML={{ __html: previewHtml }} />
+      {/* Live preview — full-formula errors in LaTeX mode, mixed render in plain mode */}
+      {showPreview && (
+        <div className={`fi-preview${latexPreview?.error ? ' fi-preview--error' : ''}`}>
+          {latexMode
+            ? (latexPreview.error
+                ? <span className="fi-preview-err">⚠ {latexPreview.error}</span>
+                : <span dangerouslySetInnerHTML={{ __html: latexPreview.html }} />)
+            : <span dangerouslySetInnerHTML={{ __html: mixed.html }} />
           }
         </div>
       )}
@@ -196,18 +206,3 @@ export default function FormulaInput({
   );
 }
 
-// Utility: does a stored value look like LaTeX?
-// Call this in the gameplay renderer to decide whether to use KaTeX.
-export function looksLikeLatex(text) {
-  if (!text) return false;
-  return /[\\^_{}]/.test(text) || /\\[a-zA-Z]/.test(text);
-}
-
-// Utility: render a value for display (gameplay, table preview, etc.)
-// Returns { isLatex, html, plain }
-export function renderForDisplay(text) {
-  if (!looksLikeLatex(text)) return { isLatex: false, html: '', plain: text };
-  const { html, error } = renderLatex(text);
-  if (error) return { isLatex: false, html: '', plain: text }; // fallback to plain
-  return { isLatex: true, html, plain: text };
-}

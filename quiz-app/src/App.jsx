@@ -132,7 +132,9 @@ export default function App() {
         if (rows?.length) {
           const questions = rows.map((r) => ({
             q: r.text, options: r.options, answer: r.correct,
-            round: r.round ?? 5, image_url: r.image_url, video_url: r.video_url, poster_url: r.poster_url,
+            round: r.round ?? 5,
+            correctPoints: r.correct_points, penaltyPoints: r.penalty_points,
+            image_url: r.image_url, video_url: r.video_url, poster_url: r.poster_url,
           }));
           const scoring = {};
           if (category.correct_points != null) scoring.correctPoints = category.correct_points;
@@ -225,6 +227,7 @@ export default function App() {
         <QuizSelectScreen
           onBack={() => setScreen(isQuickPlay ? 'mode-select' : 'team-setup')}
           onSelectQuiz={handleSelectQuiz}
+          teamCount={teams.length}
         />
       )}
 

@@ -41,6 +41,7 @@ create table if not exists public.quizzes (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
   rounds     int  not null default 1,
+  team_count int  not null default 2,             -- how many teams this quiz is designed for (2–10)
   timer      int  not null default 25,            -- normal round countdown (seconds)
   timer_round_timer int not null default 10,      -- shorter countdown for the Timer round
   correct_points int not null default 1000,       -- points awarded on a correct answer
@@ -49,6 +50,7 @@ create table if not exists public.quizzes (
   created_at timestamptz not null default now()
 );
 -- Backfill the scoring/timer columns on databases created before they existed.
+alter table public.quizzes add column if not exists team_count int not null default 2;
 alter table public.quizzes add column if not exists timer_round_timer int not null default 10;
 alter table public.quizzes add column if not exists correct_points int not null default 1000;
 alter table public.quizzes add column if not exists penalty_points int not null default 500;
@@ -61,6 +63,8 @@ create table if not exists public.questions (
   options    jsonb not null default '[]'::jsonb,   -- array of 4 strings
   correct    int  not null default 0 check (correct between 0 and 3),
   round      int  not null default 1,
+  correct_points int not null default 1000,        -- points awarded when this question is answered right
+  penalty_points int not null default 500,         -- points subtracted on a wrong answer / timeout
   image_url  text,
   video_url  text,
   poster_url text,                                  -- WebP first-frame poster for fast video display
@@ -68,6 +72,9 @@ create table if not exists public.questions (
   created_at timestamptz not null default now()
 );
 create index if not exists questions_quiz_id_idx on public.questions(quiz_id);
+-- Backfill the per-question scoring columns on databases created before them.
+alter table public.questions add column if not exists correct_points int not null default 1000;
+alter table public.questions add column if not exists penalty_points int not null default 500;
 
 -- ---------- GAME RESULTS (history / leaderboard) ----------------------------
 create table if not exists public.game_results (

@@ -18,13 +18,16 @@ import Box, { A } from '../components/Box';
 import { isSupabaseConfigured } from '../lib/supabase';
 import {
   createQuiz, updateQuiz, getQuiz, listQuestions,
-  saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia,
+  saveQuestion as apiSaveQuestion, deleteQuestion as apiDeleteQuestion, uploadMedia, importQuiz,
 } from '../lib/api';
+import ImportModal from '../components/ImportModal';
+import Toast from '../components/Toast';
 import { imageToWebp, videoPoster } from '../lib/media';
 import { ROUND_TYPES, roundById, DEFAULT_SCORING } from '../data/rounds';
 import { playSound } from '../lib/sound';
 import { toScript } from '../lib/textscript';
-import FormulaInput, { renderForDisplay } from '../components/FormulaInput';
+import FormulaInput from '../components/FormulaInput';
+import { renderMixedHtml as renderForDisplay } from '../lib/mathText';
 import './screens.css';
 
 
@@ -32,7 +35,10 @@ import './screens.css';
 
 const mapRow = (r) => ({
   id: r.id, question: r.text, options: r.options, correct: r.correct,
-  round: r.round ?? 5, image_url: r.image_url ?? null,
+  round: r.round ?? 5,
+  correctPoints: r.correct_points ?? DEFAULT_SCORING.correctPoints,
+  penaltyPoints: r.penalty_points ?? DEFAULT_SCORING.penaltyPoints,
+  image_url: r.image_url ?? null,
   video_url: r.video_url ?? null, poster_url: r.poster_url ?? null,
 });
 
@@ -92,7 +98,10 @@ const TrashIcon = () => (
 
 // ─── form helpers ─────────────────────────────────────────────────────────────
 
-const emptyForm = () => ({ question: '', options: ['', '', '', ''], correct: 0, round: 5 });
+const emptyForm = () => ({
+  question: '', options: ['', '', '', ''], correct: 0, round: 5,
+  correctPoints: DEFAULT_SCORING.correctPoints, penaltyPoints: DEFAULT_SCORING.penaltyPoints,
+});
 
 // latexModes: { question: bool, opt0: bool, opt1: bool, opt2: bool, opt3: bool }
 const emptyLatexModes = () => ({ question: false, opt0: false, opt1: false, opt2: false, opt3: false });
@@ -107,6 +116,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const [timerRoundTimer, setTimerRoundTimer] = useState(DEFAULT_SCORING.timerRoundTimer);
   const [correctPoints, setCorrectPoints] = useState(DEFAULT_SCORING.correctPoints);
   const [penaltyPoints, setPenaltyPoints] = useState(DEFAULT_SCORING.penaltyPoints);
+  const [teamCount, setTeamCount] = useState(2);   // how many teams this quiz is built for (2–10)
   const [imageName, setImageName] = useState('');
   const [videoName, setVideoName] = useState('');
   const [questions, setQuestions] = useState(
@@ -119,6 +129,9 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const [videoFile, setVideoFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(editQuiz && isSupabaseConfigured));
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState(null);
 
   const imageRef = useRef(null);
   const videoRef = useRef(null);
@@ -169,6 +182,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
         if (!active) return;
         if (quiz) {
           setQuizName(quiz.name ?? '');
+          if (quiz.team_count != null) setTeamCount(quiz.team_count);
           if (quiz.timer != null) setTimer(quiz.timer);
           if (quiz.timer_round_timer != null) setTimerRoundTimer(quiz.timer_round_timer);
           if (quiz.correct_points != null) setCorrectPoints(quiz.correct_points);
@@ -191,7 +205,8 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     setForm((f) => ({ ...f, options: f.options.map((o, idx) => (idx === i ? v : o)) }));
 
   const clearForm = () => {
-    setForm(emptyForm());
+    // New questions start from the quiz-level default points (editable per question).
+    setForm({ ...emptyForm(), correctPoints, penaltyPoints });
     setLatexModes(emptyLatexModes());
     setEditingId(null);
   };
@@ -221,6 +236,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
       const quizSettings = {
         name: quizName.trim() || 'Untitled Quiz',
         rounds: ROUND_TYPES.length,
+        teamCount: Number(teamCount),
         timer: Number(timer),
         timerRoundTimer: Number(timerRoundTimer),
         correctPoints: Number(correctPoints),
@@ -246,7 +262,8 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
       const saved = await apiSaveQuestion(qid, {
         id: typeof editingId === 'string' ? editingId : undefined,
         question: form.question, options: form.options, correct: form.correct,
-        round: form.round, image_url, video_url, poster_url, position: questions.length,
+        round: form.round, correctPoints: Number(form.correctPoints), penaltyPoints: Number(form.penaltyPoints),
+        image_url, video_url, poster_url, position: questions.length,
       });
       setQuestions((qs) =>
         qs.some((q) => q.id === saved.id)
@@ -265,7 +282,10 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
 
   const editQuestion = (q) => {
     playSound('click');
-    setForm({ question: q.question, options: [...q.options], correct: q.correct, round: q.round ?? 5 });
+    setForm({
+      question: q.question, options: [...q.options], correct: q.correct, round: q.round ?? 5,
+      correctPoints: q.correctPoints ?? correctPoints, penaltyPoints: q.penaltyPoints ?? penaltyPoints,
+    });
     setLatexModes(emptyLatexModes()); // reset — teacher decides per field
     setEditingId(q.id);
   };
@@ -279,6 +299,44 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     }
   };
 
+  // JSON import (single quiz) → load it into the editor. Online: persist the
+  // quiz + questions immediately so they appear saved (and reviewable) in the
+  // table; offline just populates local state.
+  const handleImport = async (quizzes) => {
+    const quiz = quizzes[0];
+    setQuizName(quiz.name);
+    setTeamCount(quiz.teamCount);
+    setTimer(quiz.timer);
+    setTimerRoundTimer(quiz.timerRoundTimer);
+    setCorrectPoints(quiz.correctPoints);
+    setPenaltyPoints(quiz.penaltyPoints);
+    setEditingId(null);
+    setForm(emptyForm());
+    setPage(1);
+    const n = quiz.questions.length;
+    if (!isSupabaseConfigured) {
+      setQuestions(quiz.questions.map((q, i) => ({
+        id: i + 1, question: q.question, options: q.options, correct: q.correct, round: q.round,
+      })));
+      setShowImport(false);
+      setToast({ type: 'success', title: `Imported “${quiz.name}” — ${n} question${n === 1 ? '' : 's'} loaded` });
+      return;
+    }
+    setImporting(true);
+    try {
+      const res = await importQuiz(quiz);
+      setQuizId(res.id);
+      setQuestions(res.questions.map(mapRow));
+      setShowImport(false);
+      setToast({ type: 'success', title: `Imported “${quiz.name}” — ${n} question${n === 1 ? '' : 's'} added 🎉` });
+    } catch (e) {
+      console.error('Import failed:', e.message);
+      setToast({ type: 'error', title: 'Import failed', lines: [e.message] });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // ─── pagination ───────────────────────────────────────────────────────────
 
   const pageCount = Math.max(1, Math.ceil(questions.length / PAGE_SIZE));
@@ -287,9 +345,22 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   const rows = questions.slice(start, start + PAGE_SIZE);
   const goto = (p) => { playSound('click'); setPage(Math.min(Math.max(1, p), pageCount)); };
 
+  // Soft guidance: per-round question counts vs the per-team target. For equal
+  // participation each round should hold a multiple of teamCount questions
+  // (one per team). This never blocks saving — it's just a hint for the teacher.
+  const roundCounts = questions.reduce((acc, q) => {
+    const id = q.round ?? 5;
+    acc[id] = (acc[id] || 0) + 1;
+    return acc;
+  }, {});
+  const roundSummary = ROUND_TYPES
+    .filter((r) => roundCounts[r.id])
+    .map((r) => ({ short: r.short, count: roundCounts[r.id], ok: roundCounts[r.id] % teamCount === 0 }));
+
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
+    <>
     <Stage className="screen-fade">
       <Box img={A('stage-bg.png')} x={0} y={0} w={1536} h={1024} style={{ filter: 'blur(20px)' }} />
       <Box img={A('create-quiz-panel.png')} x={PANEL.x} y={PANEL.y} w={PANEL.w} h={PANEL.h} />
@@ -337,8 +408,12 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
                     </ol>
                     <div className="cq-fmt-pop-tip">
                       Works in the question and all four option boxes. Select again and
-                      click the same button to undo. For full math expressions, use the
-                      <b>∑ Formula</b> button on any field to switch to LaTeX mode.
+                      click the same button to undo.
+                      <br /><br />
+                      <b>Math formulas:</b> wrap any LaTeX in <b>$…$</b> to mix it into
+                      normal text — e.g. <b>What is $a^2 + b^2$ called?</b>. You can paste
+                      LaTeX straight from ChatGPT (it already uses <b>$…$</b>). The live
+                      preview under each box shows exactly how it will look.
                     </div>
                   </div>
                 )}
@@ -374,6 +449,23 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
                   {ROUND_TYPES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>
                 <span className="cq-caret">▾</span>
+              </div>
+            </div>
+
+            {/* Per-question points — pre-filled from the quiz defaults, editable
+                per question. These are what gameplay actually awards / deducts. */}
+            <div className="cq-field cq-field-row">
+              <div className="cq-subfield">
+                <label className="cq-label">Correct Points (this question)</label>
+                <input className="cq-input" type="number" min={0} step={10}
+                  value={form.correctPoints}
+                  onChange={(e) => setForm((f) => ({ ...f, correctPoints: e.target.value }))} />
+              </div>
+              <div className="cq-subfield">
+                <label className="cq-label">Penalty Points (this question)</label>
+                <input className="cq-input" type="number" min={0} step={10}
+                  value={form.penaltyPoints}
+                  onChange={(e) => setForm((f) => ({ ...f, penaltyPoints: e.target.value }))} />
               </div>
             </div>
 
@@ -415,22 +507,35 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
                 value={quizName} onChange={(e) => setQuizName(e.target.value)} />
             </div>
             <div className="cq-field">
+              <label className="cq-label">Designed for (Teams)</label>
+              <div className="cq-select-wrap">
+                <select className="cq-select" value={teamCount}
+                  onChange={(e) => setTeamCount(Number(e.target.value))}>
+                  {Array.from({ length: 9 }, (_, k) => k + 2).map((n) => (
+                    <option key={n} value={n}>{n} Teams</option>
+                  ))}
+                </select>
+                <span className="cq-caret">▾</span>
+              </div>
+            </div>
+            <div className="cq-field">
               <label className="cq-label">Timer (Seconds)</label>
               <input className="cq-input" type="number" min={5} max={300}
                 value={timer} onChange={(e) => setTimer(e.target.value)} />
             </div>
             <div className="cq-field cq-field-row">
               <div className="cq-subfield">
-                <label className="cq-label">Correct Points</label>
+                <label className="cq-label">Default Correct Points</label>
                 <input className="cq-input" type="number" min={0} step={10}
                   value={correctPoints} onChange={(e) => setCorrectPoints(e.target.value)} />
               </div>
               <div className="cq-subfield">
-                <label className="cq-label">Penalty Points</label>
+                <label className="cq-label">Default Penalty Points</label>
                 <input className="cq-input" type="number" min={0} step={10}
                   value={penaltyPoints} onChange={(e) => setPenaltyPoints(e.target.value)} />
               </div>
             </div>
+            <div className="cq-help-line">Defaults for new questions — each question can override them on the left.</div>
             <div className="cq-field">
               <label className="cq-label">Image Upload (Optional)</label>
               <div className="cq-upload" onClick={() => imageRef.current?.click()}>
@@ -465,13 +570,30 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
 
         {/* BOTTOM: questions table */}
         <div className="cq-bottom">
-          <div className="cq-section">All Added Questions</div>
+          <div className="cq-section cq-section-row">
+            <span>All Added Questions</span>
+            {/* Per-round guidance: each round should hold a multiple of teamCount
+                questions so every team gets an equal turn. Amber = off-target. */}
+            {roundSummary.length > 0 && (
+              <span className="cq-round-guide">
+                {roundSummary.map((r) => (
+                  <span key={r.short} className="cq-round-chip" style={{
+                    color: r.ok ? '#9be39b' : '#FAB700',
+                    borderColor: r.ok ? 'rgba(155,227,155,0.5)' : 'rgba(250,183,0,0.6)',
+                  }}>
+                    {r.short} {r.count}/{teamCount}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
           <div className="cq-table">
             <div className="cq-thead">
               <div className="cq-th cq-c-center">#</div>
               <div className="cq-th">QUESTION</div>
               <div className="cq-th cq-c-center">ROUND</div>
               <div className="cq-th cq-c-center">CORRECT OPTION</div>
+              <div className="cq-th cq-c-center">POINTS</div>
               <div className="cq-th cq-c-center">ACTIONS</div>
             </div>
             <div className="cq-trows">
@@ -486,6 +608,10 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
                   {/* Correct option cell — also renders LaTeX */}
                   <div className="cq-td cq-c-center">
                     <TableCell value={q.options[q.correct]} />
+                  </div>
+                  <div className="cq-td cq-c-center cq-pts">
+                    <span className="cq-pts-pos">+{q.correctPoints ?? correctPoints}</span>
+                    <span className="cq-pts-neg">−{q.penaltyPoints ?? penaltyPoints}</span>
                   </div>
                   <div className="cq-c-actions">
                     <button className="vq-iconbtn edit" aria-label="Edit question" onClick={() => editQuestion(q)}>
@@ -514,6 +640,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
         {/* Action buttons */}
         <div className="cq-actions-bar">
           <button className="cq-btn back" onClick={() => { playSound('click'); onBack?.(); }}>‹ Back to Dashboard</button>
+          <button className="cq-btn import" onClick={() => { playSound('click'); setShowImport(true); }}>⬆ Import JSON</button>
           <button className="cq-btn save" onClick={saveQuestion} disabled={saving}>
             {saving ? 'Saving…' : editingId != null ? 'Update Question' : 'Save Question'}
           </button>
@@ -521,5 +648,18 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
         </div>
       </div>
     </Stage>
+
+    {showImport && (
+      <ImportModal
+        title="Import a quiz (JSON)"
+        bulk={false}
+        busy={importing}
+        onClose={() => setShowImport(false)}
+        onImport={handleImport}
+      />
+    )}
+
+    <Toast toast={toast} onClose={() => setToast(null)} />
+    </>
   );
 }

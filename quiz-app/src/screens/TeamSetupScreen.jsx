@@ -31,7 +31,10 @@ const TRASH_W = 86;                  // "ACTION" column
 const FIELD_FILL = 'rgb(44, 0, 72)';
 
 const MIN_TEAMS = 1;
-const MAX_TEAMS = 9;
+const MAX_TEAMS = 10;
+// Beyond this many rows the list scrolls inside the panel so the ornate frame
+// and the ADD TEAM button never run off the bottom of the stage.
+const MAX_VISIBLE_ROWS = 7;
 
 const TrashIcon = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
@@ -52,7 +55,10 @@ export default function TeamSetupScreen({ onBack, onPlay }) {
   const rename = (i, v) => setTeams((t) => t.map((tm, idx) => (idx === i ? { name: v } : tm)));
   const play = () => { playSound('click'); onPlay(teams.map((t) => ({ name: t.name.trim() || 'Unnamed Team', score: 0 }))); };
 
-  const totalH = BORDER.top + teams.length * ROW_H + BORDER.bottom;
+  const fullRowsH = teams.length * ROW_H;
+  const contentH = Math.min(fullRowsH, MAX_VISIBLE_ROWS * ROW_H);
+  const scrolls = fullRowsH > contentH;
+  const totalH = BORDER.top + contentH + BORDER.bottom;
   const panelY = Math.max(-30, Math.round((1024 - totalH) / 2));
 
   return (
@@ -85,35 +91,44 @@ export default function TeamSetupScreen({ onBack, onPlay }) {
           boxSizing: 'border-box',
         }}
       >
-        {/* Content box (between the borders) holds the live rows */}
-        <div style={{ position: 'relative', width: CONTENT_W, height: teams.length * ROW_H }}>
-          {teams.map((team, i) => (
-            <div key={i} className="ts-row" style={{ position: 'absolute', top: i * ROW_H, left: 0, width: CONTENT_W, height: ROW_H }}>
-              {/* number */}
-              <div className="ts-num" style={{ width: NUM_W }}>{i + 1}.</div>
+        {/* Content box (between the borders) holds the live rows. When there are
+            more teams than fit, the rows scroll while the frame stays put. */}
+        <div
+          className="ts-scroll"
+          style={{
+            position: 'relative', width: CONTENT_W, height: contentH,
+            overflowY: scrolls ? 'auto' : 'visible', overflowX: 'hidden',
+          }}
+        >
+          <div style={{ position: 'relative', width: CONTENT_W, height: fullRowsH }}>
+            {teams.map((team, i) => (
+              <div key={i} className="ts-row" style={{ position: 'absolute', top: i * ROW_H, left: 0, width: CONTENT_W, height: ROW_H }}>
+                {/* number */}
+                <div className="ts-num" style={{ width: NUM_W }}>{i + 1}.</div>
 
-              {/* name field */}
-              <div className="ts-field" style={{ left: NUM_W, width: CONTENT_W - NUM_W - TRASH_W }}>
-                <input
-                  className="team-input"
-                  type="text"
-                  value={team.name}
-                  maxLength={16}
-                  placeholder="Enter team name..."
-                  onChange={(e) => rename(i, e.target.value)}
-                  style={{ background: FIELD_FILL }}
-                />
+                {/* name field */}
+                <div className="ts-field" style={{ left: NUM_W, width: CONTENT_W - NUM_W - TRASH_W }}>
+                  <input
+                    className="team-input"
+                    type="text"
+                    value={team.name}
+                    maxLength={16}
+                    placeholder="Enter team name..."
+                    onChange={(e) => rename(i, e.target.value)}
+                    style={{ background: FIELD_FILL }}
+                  />
+                </div>
+
+                {/* delete */}
+                {teams.length > MIN_TEAMS && (
+                  <button className="ts-trash"
+                    onClick={() => removeTeam(i)} aria-label={`Delete team ${i + 1}`}>
+                    <TrashIcon />
+                  </button>
+                )}
               </div>
-
-              {/* delete */}
-              {teams.length > MIN_TEAMS && (
-                <button className="ts-trash"
-                  onClick={() => removeTeam(i)} aria-label={`Delete team ${i + 1}`}>
-                  <TrashIcon />
-                </button>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* ADD TEAM hotspot — over the baked button in the bottom border */}
@@ -125,7 +140,7 @@ export default function TeamSetupScreen({ onBack, onPlay }) {
             style={{
               position: 'absolute',
               left: (PANEL_W - D(372)) / 2 - BORDER.left,
-              top: teams.length * ROW_H + D(19),
+              top: contentH + D(19),
               width: D(372),
               height: D(84),
               borderRadius: 12,

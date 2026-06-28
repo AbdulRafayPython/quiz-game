@@ -61,6 +61,15 @@ Desktop.ini
 /figma-frames/
 /figma-new/
 /verify-shots/
+# Raw source media (audio/images). The app ships optimized assets in
+# quiz-app/public/assets/, so the ~31MB of originals stay on disk only.
+/media/
+
+# ===== Accidental editor duplicates ("… copy.ext", "… - Copy.ext") =====
+* copy.*
+* copy [0-9].*
+* - Copy.*
+* - Copy (*).*
 
 # ===== Local working files (kept on disk, never pushed) =====
 # Internal client brief and scratch screenshots at the repo root.

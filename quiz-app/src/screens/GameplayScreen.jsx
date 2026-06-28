@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Stage from '../components/Stage';
 import Box, { A } from '../components/Box';
 import { roundById, DEFAULT_SCORING } from '../data/rounds';
 import { playSound, stopSound, stopGameSounds, setSuspense } from '../lib/sound';
 import GameplayOptionDisplay from '../components/GameplayOptionDisplay';
 import FitText from '../components/FitText';
+import TeamScoreboard from '../components/TeamScoreboard';
+import PrizeLadder from '../components/PrizeLadder';
 import './screens.css';
 
 const GOLD = '#FAB700';
@@ -31,30 +33,6 @@ function makeAudiencePoll(correct) {
   return poll;
 }
 
-const LADDER_POINTS = [10, 30, 50, 100, 500, 1000, 10000, 100000, 1000000, 10000000];
-const pointsForIndex = (i) => LADDER_POINTS[Math.min(i, LADDER_POINTS.length - 1)];
-
-const LADDER = [
-  { lvl: 10, y: 283 },
-  { lvl: 9,  y: 328 },
-  { lvl: 8,  y: 403 },
-  { lvl: 7,  y: 448 },
-  { lvl: 6,  y: 523 },
-  { lvl: 5,  y: 568 },
-  { lvl: 4,  y: 643 },
-  { lvl: 3,  y: 688 },
-  { lvl: 2,  y: 763 },
-  { lvl: 1,  y: 808 },
-];
-
-const ROUNDS = [
-  { key: 'general',  label: 'General Round', y: 248 },
-  { key: 'audience', label: 'ASK Audience',  y: 368 },
-  { key: 'fifty',    label: '50:50',          y: 488 },
-  { key: 'timer',    label: 'Timer Round',    y: 607 },
-  { key: 'buzzer',   label: 'Buzzer Round',   y: 728 },
-];
-
 const OPTION_SLOTS = [
   { x: 348, y: 689, w: 413, h: 73 },
   { x: 778, y: 689, w: 412, h: 73 },
@@ -66,11 +44,6 @@ const LIFELINES = [
   { id: 'fifty',    img: 'lifeline-5050.png',     y: 467 },
   { id: 'phone',    img: 'lifeline-phone.png',    y: 585 },
   { id: 'audience', img: 'lifeline-audience.png', y: 703 },
-];
-
-const TEAM_SLOTS = [
-  { bx: 261, nameX: 380, scoreX: 560  },
-  { bx: 773, nameX: 892, scoreX: 1072 },
 ];
 
 const EMPTY_QUESTION = { q: '', options: ['', '', '', ''], answer: 0, round: 5 };
@@ -111,8 +84,28 @@ export default function GameplayScreen({
   initialLifelineBg = null,
 }) {
   const scoring = { ...DEFAULT_SCORING, ...(scoringProp || {}) };
-  const questionsList = providedQuestions?.length ? providedQuestions : [];
-  const noQuestions = questionsList.length === 0;
+
+  // Sequence the questions round-by-round: every question of one round is played
+  // before the next round starts, preserving the order each round first appears
+  // (and the original order within a round). `seats[i]` is a question's 0-based
+  // position within its round group — for turn-based rounds that decides which
+  // team answers (seat % teamCount), so every team gets an equal turn per round.
+  const { orderedQuestions, seats } = useMemo(() => {
+    const src = providedQuestions?.length ? providedQuestions : [];
+    const groups = new Map(); // round id -> questions in that round (in order)
+    for (const q of src) {
+      const r = q?.round ?? 5;
+      if (!groups.has(r)) groups.set(r, []);
+      groups.get(r).push(q);
+    }
+    const ordered = [];
+    const seatArr = [];
+    for (const arr of groups.values()) {
+      arr.forEach((q, i) => { ordered.push(q); seatArr.push(i); });
+    }
+    return { orderedQuestions: ordered, seats: seatArr };
+  }, [providedQuestions]);
+  const noQuestions = orderedQuestions.length === 0;
 
   const roundSecondsFor = (q) =>
     roundById(q?.round).key === 'timer' ? scoring.timerRoundTimer : scoring.timer;
@@ -122,11 +115,10 @@ export default function GameplayScreen({
       ? initialTeams.map((t) => ({ ...t, score: 0 }))
       : [{ name: 'Solo Player', score: 0 }]
   );
-  const [currentTeamIndex, setCurrentTeamIndex] = useState(0);
   const [questionIndex, setQuestionIndex]         = useState(0);
   const [selectedOption, setSelectedOption]       = useState(null);
   const [revealed, setRevealed]                   = useState(false);
-  const [secondsLeft, setSecondsLeft]             = useState(() => roundSecondsFor(questionsList[0]));
+  const [secondsLeft, setSecondsLeft]             = useState(() => roundSecondsFor(orderedQuestions[0]));
   const [running, setRunning]                     = useState(true);
   const [lockedTeamIndex, setLockedTeamIndex]     = useState(null);
   const [usedLifelines, setUsedLifelines]         = useState([]);
@@ -137,19 +129,45 @@ export default function GameplayScreen({
   const inIntro = introStep < INTRO_STEPS.length;
 
   const intervalRef    = useRef(null);
-  const currentQuestion = questionsList[questionIndex] || questionsList[0] || EMPTY_QUESTION;
-  const isLast          = questionIndex >= questionsList.length - 1;
+  const audienceTimerRef = useRef(null);
+  const currentQuestion = orderedQuestions[questionIndex] || orderedQuestions[0] || EMPTY_QUESTION;
+  const isLast          = questionIndex >= orderedQuestions.length - 1;
 
-  const questionPoints = pointsForIndex(questionIndex);
-  const activeLevel    = Math.min(questionIndex + 1, LADDER_POINTS.length);
+  // Each question carries its own admin-set points (falling back to the quiz
+  // defaults). The on-screen ladder shows every question's CORRECT points, and
+  // scoring uses the current question's correct/penalty points — so the board
+  // and the score always match what the admin configured.
+  const ladder         = useMemo(
+    () => orderedQuestions.map((q) => q.correctPoints ?? scoring.correctPoints),
+    [orderedQuestions, scoring.correctPoints],
+  );
+  const correctPts     = currentQuestion.correctPoints ?? scoring.correctPoints;
+  const penaltyPts     = currentQuestion.penaltyPoints ?? scoring.penaltyPoints;
+  const activeLevel    = Math.min(questionIndex + 1, ladder.length || 1);
   const round          = roundById(currentQuestion.round);
   const isBuzzer       = round.key === 'buzzer';
-  const answeringTeam  = isBuzzer ? lockedTeamIndex : currentTeamIndex;
+  // Whose turn it is on a turn-based round: rotate through the teams by the
+  // question's seat within its round, so each team answers one question per round.
+  const turnTeamIndex  = teams.length > 0 ? (seats[questionIndex] ?? 0) % teams.length : 0;
+  const answeringTeam  = isBuzzer ? lockedTeamIndex : turnTeamIndex;
   const awaitingBuzz   = isBuzzer && lockedTeamIndex === null && !revealed;
   const hasPick        = selectedOption != null;
 
+  // Rounds in play order with their question counts (orderedQuestions is already
+  // grouped by round) — drives the ladder's per-round level blocks.
+  const roundSequence = useMemo(() => {
+    const seq = [];
+    const seen = new Map(); // round id -> index in seq
+    for (const q of orderedQuestions) {
+      const id = roundById(q?.round).id;
+      if (!seen.has(id)) { seen.set(id, seq.length); seq.push({ id, count: 0 }); }
+      seq[seen.get(id)].count++;
+    }
+    return seq;
+  }, [orderedQuestions]);
+
   const scoreTeam = (teamIdx, correct) => {
-    const delta = correct ? questionPoints : -questionPoints;
+    const delta = correct ? correctPts : -penaltyPts;
     setTeams((prev) => prev.map((t, i) => (i === teamIdx ? { ...t, score: t.score + delta } : t)));
   };
 
@@ -167,7 +185,7 @@ export default function GameplayScreen({
       } else {
         setSelectedOption(-1);
         if (isBuzzer && lockedTeamIndex === null) {
-          setTeams((prev) => prev.map((t) => ({ ...t, score: t.score - questionPoints })));
+          setTeams((prev) => prev.map((t) => ({ ...t, score: t.score - penaltyPts })));
         } else if (answeringTeam != null) {
           scoreTeam(answeringTeam, false);
         }
@@ -201,12 +219,13 @@ export default function GameplayScreen({
     }
   }, [secondsLeft, running, revealed, noQuestions]);
 
-  useEffect(() => () => stopGameSounds(), []);
+  useEffect(() => () => { clearTimeout(audienceTimerRef.current); stopGameSounds(); }, []);
 
   const handleSelectOption = (idx) => {
     if (noQuestions || revealed || hasPick || awaitingBuzz || hiddenOptions.includes(idx)) return;
     // Stop any running lifeline cue (Ask Audience / Phone a Friend) — the team
     // has committed to an answer, so the suspense/reveal sounds take over.
+    clearTimeout(audienceTimerRef.current);
     stopSound('audience');
     stopSound('friend');
     setSelectedOption(idx);
@@ -225,31 +244,38 @@ export default function GameplayScreen({
   const handleNext = () => {
     setSuspense(false);
     // Make sure no lifeline cue carries over into the next question.
+    clearTimeout(audienceTimerRef.current);
     stopSound('audience');
     stopSound('friend');
     if (isLast) { onFinish(teams); return; }
     const nextIndex = questionIndex + 1;
-    if (teams.length > 1) setCurrentTeamIndex((i) => (i + 1) % teams.length);
     setQuestionIndex(nextIndex);
     setSelectedOption(null);
     setRevealed(false);
     setLockedTeamIndex(null);
     setAudiencePoll(null);
     setHiddenOptions([]);
-    setSecondsLeft(roundSecondsFor(questionsList[nextIndex]));
+    setUsedLifelines([]);        // lifelines refresh — usable again every question
+    setSecondsLeft(roundSecondsFor(orderedQuestions[nextIndex]));
     setRunning(true);
     setLifelineBg(null);
   };
 
   const handleUseLifeline = (id) => {
-    if (noQuestions || revealed || hasPick || usedLifelines.includes(id)) return;
-    setUsedLifelines((u) => [...u, id]);
+    // Re-usable: a lifeline fires every time it's clicked (it isn't consumed),
+    // as long as the answer hasn't been locked/revealed yet.
+    if (noQuestions || revealed || hasPick) return;
+    setUsedLifelines((u) => (u.includes(id) ? u : [...u, id]));
     if (id === 'fifty') {
       setHiddenOptions(pickTwoWrong(currentQuestion.answer));
     } else if (id === 'audience') {
       setAudiencePoll(makeAudiencePoll(currentQuestion.answer));
       setLifelineBg('audience');
       playSound('audience');
+      // Let the audience jingle play briefly, then hand the floor back to the
+      // game music (same feel as Phone a Friend) while the team decides.
+      clearTimeout(audienceTimerRef.current);
+      audienceTimerRef.current = setTimeout(() => stopSound('audience'), 3000);
     } else if (id === 'phone') {
       setSecondsLeft((s) => s + 10);
       setLifelineBg('phone');
@@ -286,9 +312,9 @@ export default function GameplayScreen({
     ? lockedTeamIndex == null
       ? '🔔 Buzzer Round — click the team that buzzed first'
       : `🔒 ${teams[lockedTeamIndex]?.name || 'Team'} locked in — answer now!`
-    : `${round.label} — ${teams[currentTeamIndex]?.name || 'Team'}'s turn`;
+    : `${round.label} — ${teams[turnTeamIndex]?.name || 'Team'}'s turn`;
 
-  const headerScore = teams[answeringTeam ?? currentTeamIndex]?.score || 0;
+  const headerScore = teams[answeringTeam ?? turnTeamIndex]?.score || 0;
   const media = currentQuestion.image_url || currentQuestion.video_url;
 
   return (
@@ -333,7 +359,7 @@ export default function GameplayScreen({
       {/* Lifelines */}
       {LIFELINES.map((l) => (
         <Box key={l.id} as="button" className="hot" img={A(l.img)} x={57} y={l.y} w={207} h={138}
-          disabled={usedLifelines.includes(l.id) || hasPick || revealed || noQuestions}
+          disabled={hasPick || revealed || noQuestions}
           onClick={() => handleUseLifeline(l.id)} aria-label={l.id}
           style={l.id === suggestedLifeline && !usedLifelines.includes(l.id)
             ? { filter: 'drop-shadow(0 0 14px rgba(250,183,0,0.9))' } : undefined} />
@@ -391,10 +417,7 @@ export default function GameplayScreen({
             <Box x={s.x} y={s.y} w={s.w} h={s.h} size={24} color={WHITE}
               align="center" valign="center"
               style={{ pointerEvents: 'none', padding: '0 20px' }}>
-              <GameplayOptionDisplay
-                value={optionBase(i)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              />
+              <GameplayOptionDisplay value={optionBase(i)} />
               {/* Audience poll suffix — always plain text, always same size */}
               {audiencePoll && (
                 <span style={{ fontSize: 24, color: WHITE, marginLeft: 6 }}>
@@ -413,88 +436,24 @@ export default function GameplayScreen({
         <FitText maxWidth={166} align="left" value={headerScore.toLocaleString()} />
       </Box>
 
-      {/* Round labels — the active round (matches the current question's round
-          type) is highlighted unmistakably so it can't be confused with the
-          prize-ladder's own gold glow: inactive rounds are dimmed, the active
-          one gets a bright gold ring + a ▶ marker. */}
-      {ROUNDS.map((r) => {
-        const active = r.key === round.key;
-        return (
-          <div
-            key={r.label}
-            style={{
-              opacity: active ? 1 : 0.38,
-              filter: active ? 'drop-shadow(0 0 16px rgba(250,183,0,1))' : undefined,
-            }}
-          >
-            <Box img={A('round-bracket.png')} x={1297} y={r.y} w={140} h={31} style={{ pointerEvents: 'none' }} />
-            {active && (
-              <Box x={1294} y={r.y - 3} w={146} h={37} style={{
-                pointerEvents: 'none',
-                border: '2px solid #FAB700',
-                borderRadius: 9,
-                background: 'rgba(250,183,0,0.22)',
-                boxShadow: '0 0 14px rgba(250,183,0,0.9), inset 0 0 8px rgba(250,183,0,0.45)',
-              }} />
-            )}
-            <Box x={1297} y={r.y} w={140} h={31} size={active ? 13 : 11} color={active ? GOLD : WHITE}
-              align="center" valign="center"
-              style={{ pointerEvents: 'none', fontWeight: active ? 800 : 400, letterSpacing: active ? 0.4 : 0 }}>
-              {r.label}
-            </Box>
-            {active && (
-              <Box x={1271} y={r.y} w={22} h={31} size={17} color={GOLD} align="center" valign="center"
-                style={{ pointerEvents: 'none', textShadow: '0 0 8px rgba(250,183,0,0.9)' }}>
-                ▶
-              </Box>
-            )}
-          </div>
-        );
-      })}
+      {/* Prize ladder — same styling, but each round block holds one level per
+          question (= team count), so a 4-team game shows 4 levels per round. */}
+      <PrizeLadder
+        roundSequence={roundSequence}
+        ladder={ladder}
+        activeLevel={activeLevel}
+        currentRoundId={round.id}
+      />
 
-      {/* Prize ladder */}
-      {LADDER.map((row) => {
-        const active = row.lvl === activeLevel;
-        return (
-          <div key={row.lvl} style={active ? { filter: 'drop-shadow(0 0 10px rgba(250,183,0,0.95))' } : undefined}>
-            <Box img={A('score-number.png')} x={1240} y={row.y} w={74}  h={33} style={{ pointerEvents: 'none' }} />
-            <Box img={A('score-bracket.png')} x={1322} y={row.y} w={175} h={36} style={{ pointerEvents: 'none' }} />
-            <Box x={1240} y={row.y} w={74}  h={33} size={16} color={GOLD}              align="center" valign="center" style={{ pointerEvents: 'none' }}>{row.lvl}</Box>
-            <Box x={1340} y={row.y} w={118} h={36} size={16} color={active ? GOLD : WHITE} valign="center" style={{ pointerEvents: 'none' }}>
-              <FitText maxWidth={118} align="left" value={LADDER_POINTS[row.lvl - 1].toLocaleString()} />
-            </Box>
-            <Box x={1464} y={row.y} w={30}  h={36} size={12} color={GOLD}              valign="center"            style={{ pointerEvents: 'none' }}>PTS</Box>
-          </div>
-        );
-      })}
-
-      {/* Bottom team bars */}
-      {teams.slice(0, 2).map((team, i) => {
-        const s      = TEAM_SLOTS[i];
-        const locked = isBuzzer && lockedTeamIndex === i;
-        const active = locked || (!isBuzzer && i === currentTeamIndex);
-        return (
-          <div key={i} style={active ? { filter: 'drop-shadow(0 0 14px rgba(250,183,0,0.7))' } : undefined}>
-            <Box img={A('team-bracket.png')} x={s.bx} y={884} w={497} h={94} style={{ pointerEvents: 'none' }} />
-            {/* Name is capped so a long/negative score (right-anchored) can never
-                collide with it — there's always a gap between the two. */}
-            <Box x={s.nameX} y={911} w={s.bx + 270 - s.nameX} h={36} size={24} color="#F3E1F5" valign="center"
-              style={{ pointerEvents: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {team.name}
-            </Box>
-            <Box x={s.bx + 280} y={897} w={130} h={59} size={36}
-              color={team.score < 0 ? '#ff7a7a' : '#F3E1F5'} align="right" valign="center"
-              style={{ pointerEvents: 'none' }}>
-              <FitText maxWidth={130} align="right" value={team.score.toLocaleString()} />
-            </Box>
-            {awaitingBuzz && (
-              <Box as="button" className="hot hotspot" x={s.bx} y={884} w={497} h={94}
-                onClick={() => lockTeam(i)} aria-label={`${team.name} buzzed`}
-                style={{ borderRadius: 12 }} />
-            )}
-          </div>
-        );
-      })}
+      {/* Bottom team scoreboard — 1–10 teams, one row (≤5) or two centred rows */}
+      <TeamScoreboard
+        teams={teams}
+        isBuzzer={isBuzzer}
+        turnTeamIndex={turnTeamIndex}
+        lockedTeamIndex={lockedTeamIndex}
+        awaitingBuzz={awaitingBuzz}
+        onBuzz={lockTeam}
+      />
 
       {/* Round-starting intro — covers the stage with a game-style countdown */}
       {inIntro && (
