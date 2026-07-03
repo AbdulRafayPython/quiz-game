@@ -5,6 +5,7 @@ import { roundById, DEFAULT_SCORING } from '../data/rounds';
 import { playSound, stopSound, stopGameSounds, setSuspense } from '../lib/sound';
 import GameplayOptionDisplay from '../components/GameplayOptionDisplay';
 import FitText from '../components/FitText';
+import FitBox from '../components/FitBox';
 import TeamScoreboard from '../components/TeamScoreboard';
 import PrizeLadder from '../components/PrizeLadder';
 import './screens.css';
@@ -412,19 +413,17 @@ export default function GameplayScreen({
             disabled={hasPick || revealed || awaitingBuzz || noQuestions}
             onClick={() => handleSelectOption(i)} aria-label={`Option ${i + 1}`} />
 
-          {/* Text overlay — only render when this option isn't hidden by 50:50 */}
+          {/* Text overlay — auto-fits so long answers never overflow the diamond.
+              Only rendered when this option isn't hidden by 50:50. */}
           {!hiddenOptions.includes(i) && (
-            <Box x={s.x} y={s.y} w={s.w} h={s.h} size={24} color={WHITE}
-              align="center" valign="center"
-              style={{ pointerEvents: 'none', padding: '0 20px' }}>
+            <FitBox x={s.x} y={s.y} w={s.w} h={s.h} color={WHITE}
+              fitKey={`${optionBase(i)}|${audiencePoll ? audiencePoll[i] : ''}`}>
               <GameplayOptionDisplay value={optionBase(i)} />
-              {/* Audience poll suffix — always plain text, always same size */}
+              {/* Audience poll suffix — scales with the fitted option text */}
               {audiencePoll && (
-                <span style={{ fontSize: 24, color: WHITE, marginLeft: 6 }}>
-                  {audiencePoll[i]}%
-                </span>
+                <span style={{ marginLeft: 4, opacity: 0.92 }}>{audiencePoll[i]}%</span>
               )}
-            </Box>
+            </FitBox>
           )}
         </div>
       ))}
