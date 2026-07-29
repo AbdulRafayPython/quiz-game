@@ -16,12 +16,14 @@ export default function ModeSelectScreen({ onSelectMode, onExit }) {
       {/* Logo (449×449 @ 544,187) */}
       <Box img={A('logo.png')} x={544} y={187} w={449} h={449} fit="contain" />
 
-      {/* Quick Play card (353×189 @ 370,715) */}
+      {/* Quick Play (single player) — hidden for now; to re-enable, restore this
+          card and move Team Play back to x={806}.
       <Box as="button" className="hot" img={A('card-quickplay.png')} x={370} y={715} w={353} h={189}
         onClick={() => { playSound('click'); onSelectMode('quick'); }} aria-label="Quick Play" />
+      */}
 
-      {/* Team Play card (353×191 @ 806,713) */}
-      <Box as="button" className="hot" img={A('card-teamplay.png')} x={806} y={713} w={353} h={191}
+      {/* Team Play card (353×191) — centred while Quick Play is hidden */}
+      <Box as="button" className="hot" img={A('card-teamplay.png')} x={591} y={713} w={353} h={191}
         onClick={() => { playSound('click'); onSelectMode('team'); }} aria-label="Team Play" />
     </Stage>
   );
