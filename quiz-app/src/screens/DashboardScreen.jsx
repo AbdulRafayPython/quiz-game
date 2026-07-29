@@ -4,6 +4,7 @@ import Box, { A } from '../components/Box';
 import { playSound } from '../lib/sound';
 import { isSupabaseConfigured } from '../lib/supabase';
 import { importQuiz } from '../lib/api';
+import { importToast } from '../lib/quizImport';
 import ImportModal from '../components/ImportModal';
 import Toast from '../components/Toast';
 import './screens.css';
@@ -15,7 +16,7 @@ export default function DashboardScreen({ onExit, onCreateQuiz, onViewQuizzes })
   const [toast, setToast] = useState(null);
 
   // Bulk import: create every quiz (with its questions) in the bundle.
-  const handleImport = async (quizzes) => {
+  const handleImport = async (quizzes, warnings = []) => {
     if (!isSupabaseConfigured) {
       setToast({ type: 'error', title: 'Connect Supabase to import quizzes.' });
       return;
@@ -28,10 +29,11 @@ export default function DashboardScreen({ onExit, onCreateQuiz, onViewQuizzes })
     }
     setImporting(false);
     setShowImport(false);
-    if (fails.length === 0) {
-      setToast({ type: 'success', title: `Imported ${ok} quiz${ok === 1 ? '' : 'zes'} successfully 🎉` });
+    if (fails.length > 0) {
+      // A real DB failure — show it (plus any auto-fixes) so it can be addressed.
+      setToast({ type: 'error', title: `Imported ${ok} of ${quizzes.length} — ${fails.length} failed`, lines: [...fails, ...warnings].slice(0, 10) });
     } else {
-      setToast({ type: 'error', title: `Imported ${ok} of ${quizzes.length} — ${fails.length} failed`, lines: fails });
+      setToast(importToast(`Imported ${ok} quiz${ok === 1 ? '' : 'zes'}`, warnings));
     }
   };
 

@@ -22,6 +22,7 @@ import {
 } from '../lib/api';
 import ImportModal from '../components/ImportModal';
 import Toast from '../components/Toast';
+import { importToast } from '../lib/quizImport';
 import { imageToWebp, videoPoster } from '../lib/media';
 import { ROUND_TYPES, roundById, DEFAULT_SCORING } from '../data/rounds';
 import { playSound } from '../lib/sound';
@@ -302,7 +303,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
   // JSON import (single quiz) → load it into the editor. Online: persist the
   // quiz + questions immediately so they appear saved (and reviewable) in the
   // table; offline just populates local state.
-  const handleImport = async (quizzes) => {
+  const handleImport = async (quizzes, warnings = []) => {
     const quiz = quizzes[0];
     setQuizName(quiz.name);
     setTeamCount(quiz.teamCount);
@@ -317,9 +318,10 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
     if (!isSupabaseConfigured) {
       setQuestions(quiz.questions.map((q, i) => ({
         id: i + 1, question: q.question, options: q.options, correct: q.correct, round: q.round,
+        correctPoints: q.correctPoints, penaltyPoints: q.penaltyPoints,
       })));
       setShowImport(false);
-      setToast({ type: 'success', title: `Imported “${quiz.name}” — ${n} question${n === 1 ? '' : 's'} loaded` });
+      setToast(importToast(`Imported “${quiz.name}” — ${n} question${n === 1 ? '' : 's'} loaded`, warnings));
       return;
     }
     setImporting(true);
@@ -328,7 +330,7 @@ export default function CreateQuizScreen({ onBack, editQuiz = null }) {
       setQuizId(res.id);
       setQuestions(res.questions.map(mapRow));
       setShowImport(false);
-      setToast({ type: 'success', title: `Imported “${quiz.name}” — ${n} question${n === 1 ? '' : 's'} added 🎉` });
+      setToast(importToast(`Imported “${quiz.name}” — ${n} question${n === 1 ? '' : 's'} added`, warnings));
     } catch (e) {
       console.error('Import failed:', e.message);
       setToast({ type: 'error', title: 'Import failed', lines: [e.message] });

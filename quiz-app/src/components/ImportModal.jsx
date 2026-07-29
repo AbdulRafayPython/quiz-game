@@ -20,7 +20,7 @@ export default function ImportModal({ title = 'Import quizzes (JSON)', bulk = fa
       return;
     }
     setErrors([]);
-    onImport(res.quizzes);
+    onImport(res.quizzes, res.warnings);
   };
 
   const copySample = async () => {
@@ -44,7 +44,7 @@ export default function ImportModal({ title = 'Import quizzes (JSON)', bulk = fa
             <button type="button" className="imp-link" onClick={() => setShowSample((s) => !s)}>
               {showSample ? '▾ Hide sample format' : '▸ Show sample format'}
             </button>
-            <span className="imp-hint">rounds: {ROUND_NAME_LIST} · formulas in $…$</span>
+            <span className="imp-hint">rounds: {ROUND_NAME_LIST} · $…$ formulas · missing/invalid fields auto-filled with defaults</span>
           </div>
 
           {showSample && (

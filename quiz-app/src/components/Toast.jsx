@@ -13,7 +13,8 @@ export default function Toast({ toast, onClose }) {
   useEffect(() => { closeRef.current = onClose; });
 
   useEffect(() => {
-    if (!toast || toast.type === 'error') return; // errors wait for a manual close
+    // Errors and warnings wait for a manual close so they can be read.
+    if (!toast || toast.type === 'error' || toast.type === 'warn') return;
     const id = setTimeout(() => closeRef.current?.(), 4000);
     return () => clearTimeout(id);
   }, [toast]);
@@ -24,7 +25,7 @@ export default function Toast({ toast, onClose }) {
   return (
     <div className="toast-wrap">
       <div className={`toast toast--${type}`} role="status">
-        <span className="toast-icon">{type === 'error' ? '⚠' : '✓'}</span>
+        <span className="toast-icon">{type === 'success' ? '✓' : '⚠'}</span>
         <div className="toast-body">
           <div className="toast-title">{title}</div>
           {lines.length > 0 && (
